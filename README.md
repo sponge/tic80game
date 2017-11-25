@@ -1,0 +1,1 @@
+Launch with `c:\tic80\tic.exe C:\tic80\game\game.tic -code-watch C:\tic80\game\game.wren`
