@@ -208,17 +208,24 @@ class Player is Entity {
       var jumpPress = Tic.btn(4)
       var speed = 0
 
+      // track if on the ground this frame, and track frames since leaving platform for late jump presses
       _grounded = check(0, 1)[1] == 0
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
 
+      // let players jump a few frames early but don't let them hold the button down
       _jumpHeldFrames = jumpPress ? _jumpHeldFrames + 1 : 0
       if (!jumpPress && _jumpHeld) {
          _jumpHeld = false
       }
 
+      // apply gravity if not on the ground. different gravity values depending on holding jump
       dy = _grounded ? 0 : dy + (_jumpHeld ? _heldGravity : _gravity)
 
+      // if jump is held, and player has let go of it since last jump
       if (jumpPress && !_jumpHeld) {
+         // allow the jump if:
+         // - they're on the ground, and haven't been holding for too long
+         // - they're not on the ground, but have recently been on the ground
          if ((_grounded && _jumpHeldFrames < _earlyJumpFrames) || (!_grounded && _fallingFrames < _lateJumpFrames)) {
             for (speed in _jumpHeights.keys) {
                if (dx.abs >= speed) {
@@ -230,21 +237,34 @@ class Player is Entity {
          }
       }
 
+      // if not pushing anything, slow down if on the ground
       if (dir == 0) {
-         if (dx != 0) {
+         if (dx != 0 && _grounded) {
             dx = dx + _friction * (dx > 0 ? -1 : 1)
          }
 
-         if (dx.abs < 0.1) {
+         // null out small values so we dont keep bouncing around 0
+         if (dx.abs <= _friction) {
             dx = 0
          }
+      // if holding a direction, figure out how fast we should try and go
       } else {
          speed = dir*dx > 0 ? _accel : _skidAccel
          dx = dx + speed * dir
       }
 
-       _pMeter = Math.clamp(0, dx.abs >= _runSpeed ? _pMeter + 2 : _pMeter - 1, _pMeterCapacity)
+      // increment the p-meter if you're on the ground and going fast enough
+      if (dx.abs >= _runSpeed && _grounded) {
+         _pMeter = _pMeter + 2
+      // tick down the p-meter, but don't if you're at 100% and midair
+      } else {
+         if (_grounded || _pMeter != _pMeterCapacity) {
+            _pMeter = _pMeter - 1
+         }
+      }
+      _pMeter = Math.clamp(0, _pMeter, _pMeterCapacity)
 
+      // hard cap speed values
       if (_pMeter == _pMeterCapacity) {
          dx = Math.clamp(-_maxSpeed, dx, _maxSpeed)
       } else {
