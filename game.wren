@@ -163,8 +163,12 @@ class Player is Entity {
             dx = 0
          }
 
-         if (side == DIR_TOP || side == DIR_BOTTOM) {
+         if (side == DIR_TOP) {
             dy = 0
+         }
+
+         if (side == DIR_BOTTOM) {
+            _grounded = true
          }
 
          return true
@@ -182,7 +186,8 @@ class Player is Entity {
       _runSpeed = 1.125
       _maxSpeed = 1.5
       _pMeterCapacity = 112
-      _gravity = 0.09375
+      _heldGravity = 0.09375
+      _gravity = 0.1875
       _earlyJumpFrames = 6
       _lateJumpFrames = 6
       _terminalVelocity = 2
@@ -204,13 +209,14 @@ class Player is Entity {
       var speed = 0
 
       _grounded = check(0, 1)[1] == 0
-      dy = _grounded ? 0 : dy + _gravity
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
 
       _jumpHeldFrames = jumpPress ? _jumpHeldFrames + 1 : 0
       if (!jumpPress && _jumpHeld) {
          _jumpHeld = false
       }
+
+      dy = _grounded ? 0 : dy + (_jumpHeld ? _heldGravity : _gravity)
 
       if (jumpPress && !_jumpHeld) {
          if ((_grounded && _jumpHeldFrames < _earlyJumpFrames) || (!_grounded && _fallingFrames < _lateJumpFrames)) {
@@ -255,7 +261,7 @@ class Player is Entity {
       Debug.text("dy", dy)
       Debug.text("spd", speed)
       Debug.text("jmp", _jumpHeldFrames)
-      Debug.text("P>>>", _pMeter)
+      Debug.text("P>>>", "%((_pMeter/_pMeterCapacity * 100).floor)\%")
       Debug.text("gnd", _grounded)
    }
 
@@ -323,13 +329,19 @@ class Game is Engine {
    construct new(){
       _t=0
       _world = World.new()
+      _slomo = false
    }
    
    update(){
-      Tic.cls()
-      _world.update(1)
-      _world.draw()
-      Debug.draw()
-      //_world.update(1)
+      if (Tic.btnp(7, 1, 60)) {
+         _slomo = !_slomo
+      }
+
+      if (!_slomo || Tic.btnp(6, 1, 30)) {
+         Tic.cls()
+         _world.update(1)
+         _world.draw()
+         Debug.draw()
+      }
    }
 }
