@@ -7,8 +7,34 @@ var PLAYER_ID = 255
 
 var DIR_LEFT = 1
 var DIR_RIGHT = 2
-var DIR_UP = 3
-var DIR_DOWN = 4
+var DIR_TOP = 3
+var DIR_BOTTOM = 4
+
+class Math {
+   static max(a, b) { a > b ? a : b }
+   static min(a, b) { a < b ? a : b }
+   static clamp(min, val, max) { val > max ? max : val < min ? min : val }
+}
+
+class Debug {
+   static text(key, val) {
+      if (!__init) {
+         __lines = []
+         __init = true
+      }
+      __lines.add([key, val])
+   }
+
+   static draw() {
+      var y = 0
+      for (line in __lines) {
+         Tic.print(line[0], 0, y)
+         Tic.print(line[1], 32, y)
+         y = y + 8
+      }
+      __lines.clear()
+   }
+}
 
 class TileCollider {
    construct new(getTile, tileWidth, tileHeight) {
@@ -63,7 +89,7 @@ class TileCollider {
             //Tic.rectb(tx*8, ty*8, 8, 8, 4)
             var tile = _getTile.call(tx, ty)
             if (tile > 0) {
-               var dir = d < 0 ? DIR_UP : DIR_DOWN
+               var dir = d < 0 ? DIR_TOP : DIR_BOTTOM
                if (resolveFn.call(dir, tile, tx, ty) == true) {
                   //Tic.rectb(tx*8, ty*8, 8, 8, 8)
                   var check = newPos..(ty + (d >= 0 ? 0 : 1)) *_th - (d >= 0 ? h : 0)
@@ -106,9 +132,17 @@ class Entity {
       _dy = 0
    }
 
-   move() {
-      _x = _world.tileCollider.queryX(_x, _y, _w, _h, _dx, resolve)
-      _y = _world.tileCollider.queryY(_x, _y, _w, _h, _dy, resolve)
+   check(ldx, ldy) {
+      return [
+         _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve) - _x,
+         _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve) - _y,
+      ]
+   }
+
+   move(ldx, ldy) {
+      var d = check(dx, dy)
+      x = x + d[0]
+      y = y + d[1]
    }
 
    think(t){}
@@ -122,14 +156,68 @@ class Player is Entity {
       super(world, x, y, w, h)
 
       _resolve = Fn.new { |side, tile, x, y|
-         return tile > 0
+         if (tile == 0) {
+            return false
+         }
+
+         if (side == DIR_LEFT || side == DIR_RIGHT) {
+            dx = 0
+         }
+
+         if (side == DIR_TOP || side == DIR_BOTTOM) {
+            dy = 0
+         }
+
+         return true
       }
+
+      _grounded = true
+      _fallingFrames = 0
+
+      _friction = 0.08
+      _accel = 0.046875
+      _maxSpeed = 1.5
+      _gravity = 0.1
+      _jumpSpeed = -2.5
    }
 
    think(t) {
-      dx = Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
-      dy = Tic.btn(0) ? -1 : Tic.btn(1) ? 1 : 0
-      move()
+      var dir = Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
+      var jumping = Tic.btnp(4, 1, 999)
+      var speed = 0
+
+      _grounded = check(0, 1)[1] == 0
+
+      dy = _grounded ? 0 : dy + _gravity
+      _fallingFrames = _grounded ? 0 : _fallingFrames + 1
+
+      if (jumping) {
+         if (_grounded || _fallingFrames < 8) {
+            dy = _jumpSpeed
+         }
+      }
+
+      if (dir == 0) {
+         if (dx != 0) {
+            dx = dx + _friction * (dx > 0 ? -1 : 1)
+         }
+
+         if (dx.abs < 0.1) {
+            dx = 0
+         }
+      } else {
+         speed = dir*dx > 0 ? _accel : _friction
+         dx = dx + speed * dir
+      }
+
+      dx = Math.clamp(-_maxSpeed, dx, _maxSpeed)
+
+      move(dx, dy)
+
+      Debug.text("x", x)
+      Debug.text("dx", dx)
+      Debug.text("spd", speed)
+      Debug.text("gnd", _grounded)
    }
 
    draw() {
@@ -150,7 +238,7 @@ class World {
       _remap = Fn.new { |i, x, y|
          if (_spawned == false) {
             if (i == PLAYER_ID) {
-               _entities.add(Player.new(this, x * 8, y * 8 - 2, 7, 10))
+               _entities.add(Player.new(this, x * 8, y * 8 - 4, 7, 12))
 
                _spawned = true
             }
@@ -175,6 +263,7 @@ class World {
 
    update(t) {
       _time = _time + t
+      Debug.text("time", time)
 
       for (ent in _entities) {
          ent.think(_time)
@@ -188,7 +277,6 @@ class World {
          ent.draw()
       }
 
-      Tic.print(time, 1, 1)
    }
 }
 
@@ -202,5 +290,7 @@ class Game is Engine {
       Tic.cls()
       _world.update(1)
       _world.draw()
+      Debug.draw()
+      //_world.update(1)
    }
 }
