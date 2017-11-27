@@ -140,9 +140,8 @@ class Entity {
    }
 
    move(ldx, ldy) {
-      var d = check(dx, dy)
-      x = x + d[0]
-      y = y + d[1]
+      _x = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
+      _y = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
    }
 
    think(t){}
@@ -173,27 +172,55 @@ class Player is Entity {
 
       _grounded = true
       _fallingFrames = 0
+      _pMeter = 0
+      _jumpHeld = false
+      _jumpHeldFrames = 0
 
-      _friction = 0.08
+      _friction = 0.0625
       _accel = 0.046875
+      _skidAccel = 0.15625
+      _runSpeed = 1.125
       _maxSpeed = 1.5
-      _gravity = 0.1
-      _jumpSpeed = -2.5
+      _pMeterCapacity = 112
+      _gravity = 0.09375
+      _earlyJumpFrames = 6
+      _lateJumpFrames = 6
+      _terminalVelocity = 2
+      _jumpHeights = {
+          1.5: 2.875,
+         1.25: 2.78125,
+            1: 2.71875,
+         0.75: 2.625,
+          0.5: 2.5625,
+         0.25: 2.46875,
+            0: 2.40625
+      }
    }
+   
 
    think(t) {
       var dir = Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
-      var jumping = Tic.btnp(4, 1, 999)
+      var jumpPress = Tic.btn(4)
       var speed = 0
 
       _grounded = check(0, 1)[1] == 0
-
       dy = _grounded ? 0 : dy + _gravity
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
 
-      if (jumping) {
-         if (_grounded || _fallingFrames < 8) {
-            dy = _jumpSpeed
+      _jumpHeldFrames = jumpPress ? _jumpHeldFrames + 1 : 0
+      if (!jumpPress && _jumpHeld) {
+         _jumpHeld = false
+      }
+
+      if (jumpPress && !_jumpHeld) {
+         if ((_grounded && _jumpHeldFrames < _earlyJumpFrames) || (!_grounded && _fallingFrames < _lateJumpFrames)) {
+            for (speed in _jumpHeights.keys) {
+               if (dx.abs >= speed) {
+                  dy = -_jumpHeights[speed]
+                  _jumpHeld = true
+                  break
+               }
+            }
          }
       }
 
@@ -206,17 +233,29 @@ class Player is Entity {
             dx = 0
          }
       } else {
-         speed = dir*dx > 0 ? _accel : _friction
+         speed = dir*dx > 0 ? _accel : _skidAccel
          dx = dx + speed * dir
       }
 
-      dx = Math.clamp(-_maxSpeed, dx, _maxSpeed)
+       _pMeter = Math.clamp(0, dx.abs >= _runSpeed ? _pMeter + 2 : _pMeter - 1, _pMeterCapacity)
+
+      if (_pMeter == _pMeterCapacity) {
+         dx = Math.clamp(-_maxSpeed, dx, _maxSpeed)
+      } else {
+         dx = Math.clamp(-_runSpeed, dx, _runSpeed)
+      }
+
+      dy = Math.min(dy, _terminalVelocity)
 
       move(dx, dy)
 
       Debug.text("x", x)
+      Debug.text("y", y)
       Debug.text("dx", dx)
+      Debug.text("dy", dy)
       Debug.text("spd", speed)
+      Debug.text("jmp", _jumpHeldFrames)
+      Debug.text("P>>>", _pMeter)
       Debug.text("gnd", _grounded)
    }
 
