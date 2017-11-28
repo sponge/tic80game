@@ -45,66 +45,58 @@ class TileCollider {
 
    getTileRange(ts, x, w, d) {
       var gx = (x / ts).floor
-      var gx2 = d >= 0 ? ((x+w+d-1) / ts).floor : ((x+d-1) / ts).floor
+      var right = x+w+d
+      right = right == right.floor ? right - 1 : right
+      var gx2 = d >= 0 ? (right / ts).floor : ((x+d) / ts).floor
+      //Debug.text("gtr", "%(x) %(w) %(d) %(gx..gx2)")
+
       return gx..gx2
    }
 
    queryX(x, y, w, h, d, resolveFn) {
-      var newPos = x + d
       var origPos = x + d
       var xRange = getTileRange(_tw, x, w, d)
       var yRange = getTileRange(_th, y, h, 0)
 
       for (tx in xRange) {
          for (ty in yRange) {
-            //Tic.rectb(tx*8, ty*8, 8, 8, 4)
+            Tic.rectb(tx*8, ty*8, 8, 8, 4)
             var tile = _getTile.call(tx, ty)
             if (tile > 0) {
                var dir = d < 0 ? DIR_LEFT : DIR_RIGHT
                if (resolveFn.call(dir, tile, tx, ty) == true) {
-                  //Tic.rectb(tx*8, ty*8, 8, 8, 8)
-                  var check = newPos..(tx + (d >= 0 ? 0 : 1)) *_tw - (d >= 0 ? w : 0)
-                  newPos = d < 0 ? check.max : check.min
+                  Tic.rectb(tx*8, ty*8, 8, 8, 8)
+                  var check = origPos..(tx + (d >= 0 ? 0 : 1)) *_tw - (d >= 0 ? w : 0)
+                  return d < 0 ? check.max : check.min
                }
             }
          }
-
-         if (newPos != origPos) {
-            break
-         }
       }
 
-      //Tic.rectb(newPos, y, w, h, 6)
-      return newPos
+      return origPos
    }
 
    queryY(x, y, w, h, d, resolveFn) {
-      var newPos = y + d
       var origPos = y + d
       var xRange = getTileRange(_tw, x, w, 0)
       var yRange = getTileRange(_th, y, h, d)
 
       for (ty in yRange) {
          for (tx in xRange) {
-            //Tic.rectb(tx*8, ty*8, 8, 8, 4)
+            Tic.rectb(tx*8, ty*8, 8, 8, 4)
             var tile = _getTile.call(tx, ty)
             if (tile > 0) {
                var dir = d < 0 ? DIR_TOP : DIR_BOTTOM
                if (resolveFn.call(dir, tile, tx, ty) == true) {
-                  //Tic.rectb(tx*8, ty*8, 8, 8, 8)
-                  var check = newPos..(ty + (d >= 0 ? 0 : 1)) *_th - (d >= 0 ? h : 0)
-                  newPos = d < 0 ? check.max : check.min
+                  Tic.rectb(tx*8, ty*8, 8, 8, 8)
+                  var check = origPos..(ty + (d >= 0 ? 0 : 1)) *_th - (d >= 0 ? h : 0)
+                  return d < 0 ? check.max : check.min
                }
             }
          }
-
-         if (newPos != origPos) {
-            break
-         }
       }
 
-      //Tic.rectb(x, newPos, w, h, 6)
-      return newPos
+      return origPos
    }
 }
 
@@ -151,13 +143,24 @@ class Entity {
 class Player is Entity {
    resolve { _resolve }
    
-   construct new(world, x, y, w, h) {
-      super(world, x, y, w, h)
+   construct new(world, ox, oy, ow, oh) {
+      super(world, ox, oy, ow, oh)
 
-      _resolve = Fn.new { |side, tile, x, y|
+      _resolve = Fn.new { |side, tile, tx, ty|
          if (tile == 0) {
             return false
          }
+
+         if (tile == 4) {
+            //Debug.text("plat", "%(ty), %(side == DIR_BOTTOM) && %(y+h) <= %(ty*8) && %(y+h+dy) > %(ty*8)")
+            var platform = side == DIR_BOTTOM && y+h <= ty*8 && y+h+dy > ty*8
+            if (platform) {
+               _grounded = true
+            }
+
+            return platform
+         }
+
 
          if (side == DIR_LEFT || side == DIR_RIGHT) {
             dx = 0
@@ -316,6 +319,9 @@ class World {
       }
 
       _getTile = Fn.new { |x, y|
+         if (x < 0 || x > 29) {
+            return 1
+         }
          var t = Tic.mget(x,y)
          t = t > 200 ? 0 : t
 
