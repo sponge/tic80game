@@ -180,7 +180,7 @@ class Player is Entity {
       _jumpHeld = false
       _jumpHeldFrames = 0
 
-      _friction = 0.0625
+      _friction = 0.03125
       _accel = 0.046875
       _skidAccel = 0.15625
       _runSpeed = 1.125
