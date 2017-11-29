@@ -113,6 +113,8 @@ class Entity {
    dx=(dx) { _dx = dx }
    dy { _dy }
    dy=(dy) { _dy = dy }
+
+   world { _world }
    
    construct new(world, x, y, w, h) {
       _world = world
@@ -278,30 +280,107 @@ class Player is Entity {
 
       move(dx, dy)
 
+      world.cam.center(x, y)
+
+      /*
       Debug.text("x", x)
       Debug.text("y", y)
       Debug.text("dx", dx)
       Debug.text("dy", dy)
       Debug.text("spd", speed)
       Debug.text("jmp", _jumpHeldFrames)
-      Debug.text("P>>>", "%((_pMeter/_pMeterCapacity * 100).floor)\%")
       Debug.text("gnd", _grounded)
+      */
+      Debug.text("P>>>", "%((_pMeter/_pMeterCapacity * 100).floor)\%")
+
    }
 
    draw() {
-      Tic.rect(x, y, w, h, 14)
+      var c = world.cam.toCamera(x, y)
+      Tic.rect(c[0], c[1], w, h, 14)
+   }
+}
+
+class Camera {
+   x { _x }
+   y { _y }
+   tx { _txRange.min }
+   ty { _tyRange.min }
+   tw { _txRange.max - _txRange.min }
+   th { _tyRange.max - _tyRange.min }
+
+   construct new(tw, th, w, h) {
+      _tw = tw
+      _th = th
+      _w = w
+      _h = h
+
+      _conx = 0
+      _cony = 0
+      _conw = 0
+      _conh = 0
+
+      _x = 0
+      _y = 0
+      _txRange = 0..30
+      _tyRange = 0..17
+   }
+
+   constrain(x, y, w, h) {
+      _conx = x
+      _cony = y
+      _conw = w
+      _conh = h
+
+      move(_x, _y)
+   }
+
+   move(x, y) {
+      _x = x.floor
+      _y = y.floor
+
+      if (_conw > 0 && _conh > 0) {
+         Debug.text("max", "%(_conx) %(_x) %(_conx+_conw-_w)")
+         _x = Math.clamp(_conx, _x, _conx+_conw-_w)
+         _y = Math.clamp(_cony, _y, _cony+_conh-_h)
+      }
+
+      _x = Math.max(_x, 0)
+      _y = Math.max(_y, 0)
+
+      Debug.text("cam", "%(_x) %(_y)")
+
+      var tx = (_x / _tw).floor
+      var ty = (_y / _th).floor
+
+      _txRange = tx..tx+(_w/_tw).ceil+1
+      _tyRange = ty..ty+(_h/_th).ceil+1 
+   }
+
+   center(x,y) {
+      move(x - _w/2, y - _h/2)
+   }
+
+   toCamera(px,py) {
+      return [px - x, py - y] 
    }
 }
 
 class World {
    time { _time }
    tileCollider { _tileCollider }
+   cam { _cam }
 
    construct new() {
       _entities = []
       _time = 0
-      _level = 0
+      _levels = [
+         {"x": 0, "y": 0, "w": 43, "h": 17}
+      ]
+      _level = _levels[0]
       _spawned = false
+      _cam = Camera.new(8,8, 240, 136)
+      _cam.constrain(_level["x"], _level["y"], _level["w"]*8, _level["h"]*8)
 
       _remap = Fn.new { |i, x, y|
          if (_spawned == false) {
@@ -319,9 +398,10 @@ class World {
       }
 
       _getTile = Fn.new { |x, y|
-         if (x < 0 || x > 29) {
+         if (x < 0 || x > _level["w"]-1) {
             return 1
          }
+
          var t = Tic.mget(x,y)
          t = t > 200 ? 0 : t
 
@@ -342,7 +422,7 @@ class World {
    }
 
    draw() {
-      Tic.map(_level * 30, 0, 30, 17, 0, 0, -1, 1, _remap)
+      Tic.map(_cam.tx, _cam.ty, _cam.tw, _cam.th, 0 - _cam.x % 8, 0 - _cam.y % 8, -1, 1, _remap)
 
       for (ent in _entities) {
          ent.draw()
