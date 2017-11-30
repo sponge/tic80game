@@ -3,8 +3,6 @@
 // desc:   short description
 // script: wren
 
-var PLAYER_ID = 255
-
 var DIR_LEFT = 1
 var DIR_RIGHT = 2
 var DIR_TOP = 3
@@ -26,6 +24,9 @@ class Debug {
    }
 
    static draw() {
+      if (__lines == null) {
+          return
+      }
       var y = 0
       for (line in __lines) {
          Tic.print(line[0], 0, y)
@@ -138,8 +139,20 @@ class Entity {
       _y = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
    }
 
+   touch(){}
    think(t){}
    draw(){}
+}
+
+class LevelExit is Entity {
+   construct new(world, ox, oy, ow, oh) {
+      super(world, ox, oy, ow, oh)
+   }
+
+   draw() {
+      var c = world.cam.toCamera(x, y)
+      Tic.spr(254, c[0], c[1])
+   }
 }
 
 class Player is Entity {
@@ -150,6 +163,11 @@ class Player is Entity {
 
       _resolve = Fn.new { |side, tile, tx, ty|
          if (tile == 0) {
+            return false
+         }
+
+         if (tile >= 224) {
+            // its an item we pick up
             return false
          }
 
@@ -185,6 +203,7 @@ class Player is Entity {
       _jumpHeld = false
       _jumpHeldFrames = 0
 
+      // values from https://cdn.discordapp.com/attachments/191015116655951872/332350193540268033/smw_physics.png
       _friction = 0.03125
       _accel = 0.046875
       _skidAccel = 0.15625
@@ -371,27 +390,33 @@ class World {
    tileCollider { _tileCollider }
    cam { _cam }
 
-   construct new() {
+   construct new(i) {
       _entities = []
       _time = 0
       _levels = [
          {"x": 0, "y": 0, "w": 43, "h": 17}
       ]
-      _level = _levels[0]
-      _spawned = false
+      _level = _levels[i]
       _cam = Camera.new(8,8, 240, 136)
       _cam.constrain(_level["x"], _level["y"], _level["w"]*8, _level["h"]*8)
 
-      _remap = Fn.new { |i, x, y|
-         if (_spawned == false) {
-            if (i == PLAYER_ID) {
-               _entities.add(Player.new(this, x * 8, y * 8 - 4, 7, 12))
+      var entmappings = {
+         255: {"class":Player, "w": 7, "h": 12},
+         254: {"class":LevelExit, "w": 8, "h":8}
+      }
 
-               _spawned = true
+      for (y in _level["y"].._level["y"]+_level["h"]) {
+         for (x in _level["x"].._level["x"]+_level["w"]) {
+            var i = Tic.mget(x, y)
+            var e = entmappings[i]
+            if (e != null) {
+               _entities.add(e["class"].new(this, x*8, y*8 - (8-e["h"]), e["w"], e["h"]))
             }
          }
+      }
 
-         if (i > 200) {
+      _remap = Fn.new { |i, x, y|
+         if (i >= 240) {
             return 0
          }
          return i
@@ -401,9 +426,9 @@ class World {
          if (x < 0 || x > _level["w"]-1) {
             return 1
          }
-
+         
          var t = Tic.mget(x,y)
-         t = t > 200 ? 0 : t
+         t = t >= 240 ? 0 : t
 
          return t
       }
@@ -412,8 +437,8 @@ class World {
 
    }
 
-   update(t) {
-      _time = _time + t
+   update(dt) {
+      _time = _time + dt
       Debug.text("time", time)
 
       for (ent in _entities) {
@@ -431,11 +456,50 @@ class World {
    }
 }
 
-class Game is Engine {
+class Intro {
+   construct new(num) {
+      _num = num
+      _t = 0
+   }
+
+   update(dt) {
+      _t = _t + dt
+
+      if (_t > 120) {
+         Scene.level(_num)
+         return
+      }
+   }
+
+   draw() {
+      Tic.cls(2)
+      Tic.print("ENTERING LEVEL %(_num+1)", 70, 60)
+   }
+}
+
+class Scene {
+   static intro(num) {
+     __world = Intro.new(num)
+   }
+
+   static level(num) {
+      __world = World.new(num)
+   }
+
+   static update(i) {
+      __world.update(i)
+   }
+
+   static draw() {
+      __world.draw()
+   }
+}
+
+class Game is Engine { 
    construct new(){
-      _t=0
-      _world = World.new()
       _slomo = false
+
+      Scene.level(0)
    }
    
    update(){
@@ -444,9 +508,8 @@ class Game is Engine {
       }
 
       if (!_slomo || Tic.btnp(6, 1, 30)) {
-         Tic.cls()
-         _world.update(1)
-         _world.draw()
+         Scene.update(1)
+         Scene.draw()
          Debug.draw()
       }
    }
