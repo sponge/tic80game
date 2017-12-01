@@ -299,7 +299,7 @@ class Player is Entity {
 
       move(dx, dy)
 
-      world.cam.center(x, y)
+      world.cam.window(x, y, 20)
 
       /*
       Debug.text("x", x)
@@ -359,7 +359,7 @@ class Camera {
       _y = y.floor
 
       if (_conw > 0 && _conh > 0) {
-         Debug.text("max", "%(_conx) %(_x) %(_conx+_conw-_w)")
+         //Debug.text("max", "%(_conx) %(_x) %(_conx+_conw-_w)")
          _x = Math.clamp(_conx, _x, _conx+_conw-_w)
          _y = Math.clamp(_cony, _y, _cony+_conh-_h)
       }
@@ -367,7 +367,7 @@ class Camera {
       _x = Math.max(_x, 0)
       _y = Math.max(_y, 0)
 
-      Debug.text("cam", "%(_x) %(_y)")
+      //Debug.text("cam", "%(_x) %(_y)")
 
       var tx = (_x / _tw).floor
       var ty = (_y / _th).floor
@@ -376,12 +376,27 @@ class Camera {
       _tyRange = ty..ty+(_h/_th).ceil+1 
    }
 
+   window(px, py, windowWidth) {
+      var center = _x + _w/2
+
+      if ((px - center).abs <= windowWidth) {
+         return
+      }
+
+      var delta = px - center + (px > center ? -1 : 1) * windowWidth
+      move(_x + delta, y)
+   }
+
    center(x,y) {
       move(x - _w/2, y - _h/2)
    }
 
    toCamera(px,py) {
       return [px - x, py - y] 
+   }
+
+   toWorld(cx, cy) {
+      return [cx + x, cy + y]
    }
 }
 
