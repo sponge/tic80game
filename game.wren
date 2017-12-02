@@ -5,10 +5,11 @@
 
 var DIR_LEFT = 1
 var DIR_RIGHT = 2
-var DIR_TOP = 3
-var DIR_BOTTOM = 4
+var DIR_TOP = 4
+var DIR_BOTTOM = 8
 
 class Math {
+   static sign(a) { a < 0 ? -1 : 1 }
    static max(a, b) { a > b ? a : b }
    static min(a, b) { a < b ? a : b }
    static clamp(min, val, max) { val > max ? max : val < min ? min : val }
@@ -68,13 +69,13 @@ class TileCollider {
                if (resolveFn.call(dir, tile, tx, ty) == true) {
                   Tic.rectb(tx*8, ty*8, 8, 8, 8)
                   var check = origPos..(tx + (d >= 0 ? 0 : 1)) *_tw - (d >= 0 ? w : 0)
-                  return d < 0 ? check.max : check.min
+                  return (d < 0 ? check.max : check.min) - x
                }
             }
          }
       }
 
-      return origPos
+      return d
    }
 
    queryY(x, y, w, h, d, resolveFn) {
@@ -91,13 +92,13 @@ class TileCollider {
                if (resolveFn.call(dir, tile, tx, ty) == true) {
                   Tic.rectb(tx*8, ty*8, 8, 8, 8)
                   var check = origPos..(ty + (d >= 0 ? 0 : 1)) *_th - (d >= 0 ? h : 0)
-                  return d < 0 ? check.max : check.min
+                  return (d < 0 ? check.max : check.min) - y
                }
             }
          }
       }
 
-      return origPos
+      return d
    }
 }
 
@@ -120,33 +121,83 @@ class Entity {
    construct new(world, x, y, w, h) {
       _world = world
       _x = x
-      _y = y
+      _y = y - (8 - h)
       _w = w
       _h = h
       _dx = 0
       _dy = 0
    }
 
+   collide(other, ldx, ldy) {
+      var ox = this.x + (this.w / 2) + ldx - other.x - (other.w / 2)
+      var px = (this.w / 2) + (other.w / 2) - ox.abs
+
+      // Debug.text("px", px)
+      if (px <= 0) {
+         // Debug.text("nox", this.x + ldx)
+         return ldx != 0 ? ldx : ldy
+      }
+      
+      var oy = this.y + (this.h / 2) + ldy - other.y - (other.h / 2)
+      var py = (this.h / 2) + (other.h / 2) - oy.abs
+
+      // Debug.text("py", py)
+      if (py <= 0) {
+         // Debug.text("noy", this.y + ldy)
+         return ldx != 0 ? ldx : ldy
+      }
+
+      if (ldx != 0) {
+         var rx = ldx + px * Math.sign(ox)
+         // Debug.text("y_x", rx)
+         return rx 
+      } else {
+         var ry = ldy + py * Math.sign(oy)
+         // Debug.text("y_y", "%(ry)")
+         return ry
+      }
+   }
+
    check(ldx, ldy) {
       return [
-         _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve) - _x,
-         _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve) - _y,
+         _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve),
+         _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve),
       ]
    }
 
    move(ldx, ldy) {
-      _x = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
-      _y = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
+      var newX = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
+
+      for (ent in _world.entities) {
+         if (ent != this && ent.w > 0 && ent.h > 0) {
+            var tempX = this.collide(ent, ldx, 0)
+            newX = ldx > 0 ? Math.min(newX, tempX) : Math.max(newX, tempX)
+         }
+      }
+
+      _x = _x + newX
+
+      var newY = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
+
+      for (ent in _world.entities) {
+         if (ent != this && ent.w > 0 && ent.h > 0) {
+            var tempY = this.collide(ent, 0, ldy)
+            newY = ldy > 0 ? Math.min(newY, tempY) : Math.max(newY, tempY)
+         }
+      }
+
+      _y = _y + newY
    }
 
+   canCollide(other, side){}
    touch(){}
    think(t){}
    draw(){}
 }
 
 class LevelExit is Entity {
-   construct new(world, ox, oy, ow, oh) {
-      super(world, ox, oy, ow, oh)
+   construct new(world, ox, oy) {
+      super(world, ox, oy, 8, 8)
    }
 
    draw() {
@@ -158,8 +209,8 @@ class LevelExit is Entity {
 class Player is Entity {
    resolve { _resolve }
    
-   construct new(world, ox, oy, ow, oh) {
-      super(world, ox, oy, ow, oh)
+   construct new(world, ox, oy) {
+      super(world, ox, oy, 7, 12)
 
       _resolve = Fn.new { |side, tile, tx, ty|
          if (tile == 0) {
@@ -404,6 +455,7 @@ class World {
    time { _time }
    tileCollider { _tileCollider }
    cam { _cam }
+   entities { _entities }
 
    construct new(i) {
       _entities = []
@@ -416,8 +468,8 @@ class World {
       _cam.constrain(_level["x"], _level["y"], _level["w"]*8, _level["h"]*8)
 
       var entmappings = {
-         255: {"class":Player, "w": 7, "h": 12},
-         254: {"class":LevelExit, "w": 8, "h":8}
+         255: Player,
+         254: LevelExit
       }
 
       for (y in _level["y"].._level["y"]+_level["h"]) {
@@ -425,7 +477,7 @@ class World {
             var i = Tic.mget(x, y)
             var e = entmappings[i]
             if (e != null) {
-               _entities.add(e["class"].new(this, x*8, y*8 - (8-e["h"]), e["w"], e["h"]))
+               _entities.add(e.new(this, x*8, y*8))
             }
          }
       }
