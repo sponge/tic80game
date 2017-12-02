@@ -16,6 +16,10 @@ class Math {
 }
 
 class Debug {
+   static text(val) {
+      text(val, "")
+   }
+
    static text(key, val) {
       if (!__init) {
          __lines = []
@@ -66,7 +70,7 @@ class TileCollider {
             var tile = _getTile.call(tx, ty)
             if (tile > 0) {
                var dir = d < 0 ? DIR_LEFT : DIR_RIGHT
-               if (resolveFn.call(dir, tile, tx, ty) == true) {
+               if (resolveFn.call(dir, tile, tx, ty, d, 0) == true) {
                   Tic.rectb(tx*8, ty*8, 8, 8, 8)
                   var check = origPos..(tx + (d >= 0 ? 0 : 1)) *_tw - (d >= 0 ? w : 0)
                   return (d < 0 ? check.max : check.min) - x
@@ -89,7 +93,7 @@ class TileCollider {
             var tile = _getTile.call(tx, ty)
             if (tile > 0) {
                var dir = d < 0 ? DIR_TOP : DIR_BOTTOM
-               if (resolveFn.call(dir, tile, tx, ty) == true) {
+               if (resolveFn.call(dir, tile, tx, ty, 0, d) == true) {
                   Tic.rectb(tx*8, ty*8, 8, 8, 8)
                   var check = origPos..(ty + (d >= 0 ? 0 : 1)) *_th - (d >= 0 ? h : 0)
                   return (d < 0 ? check.max : check.min) - y
@@ -132,64 +136,57 @@ class Entity {
       var ox = this.x + (this.w / 2) + ldx - other.x - (other.w / 2)
       var px = (this.w / 2) + (other.w / 2) - ox.abs
 
-      // Debug.text("px", px)
       if (px <= 0) {
-         // Debug.text("nox", this.x + ldx)
          return ldx != 0 ? ldx : ldy
       }
       
       var oy = this.y + (this.h / 2) + ldy - other.y - (other.h / 2)
       var py = (this.h / 2) + (other.h / 2) - oy.abs
 
-      // Debug.text("py", py)
       if (py <= 0) {
-         // Debug.text("noy", this.y + ldy)
          return ldx != 0 ? ldx : ldy
       }
 
       if (ldx != 0) {
          var rx = ldx + px * Math.sign(ox)
-         // Debug.text("y_x", rx)
          return rx 
       } else {
          var ry = ldy + py * Math.sign(oy)
-         // Debug.text("y_y", "%(ry)")
          return ry
       }
    }
 
-   check(ldx, ldy) {
-      return [
-         _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve),
-         _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve),
-      ]
-   }
-
-   move(ldx, ldy) {
+   checkX(ldx) {
       var newX = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
             var tempX = this.collide(ent, ldx, 0)
-            newX = ldx > 0 ? Math.min(newX, tempX) : Math.max(newX, tempX)
+            if (ent.canCollide(this, ldx > 0 ? DIR_RIGHT : DIR_LEFT)) {
+               newX = ldx > 0 ? Math.min(newX, tempX) : Math.max(newX, tempX)
+            }
          }
       }
 
-      _x = _x + newX
+      return newX
+   }
 
+   checkY(ldy) {
       var newY = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
             var tempY = this.collide(ent, 0, ldy)
-            newY = ldy > 0 ? Math.min(newY, tempY) : Math.max(newY, tempY)
+            if (ent.canCollide(this, ldy < 0 ? DIR_TOP : DIR_BOTTOM)) {
+               newY = ldy > 0 ? Math.min(newY, tempY) : Math.max(newY, tempY)
+            }
          }
       }
 
-      _y = _y + newY
+      return newY
    }
 
-   canCollide(other, side){}
+   canCollide(other, side){ true }
    touch(){}
    think(t){}
    draw(){}
@@ -212,37 +209,19 @@ class Player is Entity {
    construct new(world, ox, oy) {
       super(world, ox, oy, 7, 12)
 
-      _resolve = Fn.new { |side, tile, tx, ty|
+      _resolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
          if (tile == 0) {
             return false
          }
 
-         if (tile >= 224) {
-            // its an item we pick up
+         if (tile >= 240) {
+            // editor only item
             return false
          }
 
          if (tile == 4) {
-            //Debug.text("plat", "%(ty), %(side == DIR_BOTTOM) && %(y+h) <= %(ty*8) && %(y+h+dy) > %(ty*8)")
-            var platform = side == DIR_BOTTOM && y+h <= ty*8 && y+h+dy > ty*8
-            if (platform) {
-               _grounded = true
-            }
-
-            return platform
-         }
-
-
-         if (side == DIR_LEFT || side == DIR_RIGHT) {
-            dx = 0
-         }
-
-         if (side == DIR_TOP) {
-            dy = 0
-         }
-
-         if (side == DIR_BOTTOM) {
-            _grounded = true
+            //Debug.text("plat", "%(ty), %(side == DIR_BOTTOM) && %(y+h) <= %(ty*8) && %(y+h+ldy) > %(ty*8)")
+            return side == DIR_BOTTOM && y+h <= ty*8 && y+h+ldy > ty*8
          }
 
          return true
@@ -284,7 +263,7 @@ class Player is Entity {
       var speed = 0
 
       // track if on the ground this frame, and track frames since leaving platform for late jump presses
-      _grounded = check(0, 1)[1] == 0
+      _grounded = checkY(1) == 0
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
 
       // let players jump a few frames early but don't let them hold the button down
@@ -324,7 +303,7 @@ class Player is Entity {
          }
       // if holding a direction, figure out how fast we should try and go
       } else {
-         speed = dir*dx > 0 ? _accel : _skidAccel
+         speed = Math.sign(dir*dx) == -1 ? _skidAccel : _accel
          dx = dx + speed * dir
       }
 
@@ -348,19 +327,31 @@ class Player is Entity {
 
       dy = Math.min(dy, _terminalVelocity)
 
-      move(dx, dy)
+      var chkx = checkX(dx)
+      x = x + chkx
+      var chky = checkY(dy)
+      y = y + chky
+
+      if (chkx != dx) {
+         dx = 0
+      }
+
+      if (chky != dy) {
+         if (dy > 0) {
+            _grounded = true
+         }
+         dy = 0
+      }
 
       world.cam.window(x, y, 20)
 
-      /*
-      Debug.text("x", x)
-      Debug.text("y", y)
-      Debug.text("dx", dx)
-      Debug.text("dy", dy)
-      Debug.text("spd", speed)
-      Debug.text("jmp", _jumpHeldFrames)
-      Debug.text("gnd", _grounded)
-      */
+      // Debug.text("x", x)
+      // Debug.text("y", y)
+      // Debug.text("dx", dx)
+      // Debug.text("dy", dy)
+      // Debug.text("spd", speed)
+      // Debug.text("jmp", _jumpHeldFrames)
+      // Debug.text("gnd", _grounded)
       Debug.text("P>>>", "%((_pMeter/_pMeterCapacity * 100).floor)\%")
 
    }
@@ -464,7 +455,7 @@ class World {
          {"x": 0, "y": 0, "w": 43, "h": 17}
       ]
       _level = _levels[i]
-      _cam = Camera.new(8,8, 240, 136)
+      _cam = Camera.new(8, 8, 240, 136)
       _cam.constrain(_level["x"], _level["y"], _level["w"]*8, _level["h"]*8)
 
       var entmappings = {
