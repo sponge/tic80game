@@ -106,6 +106,24 @@ class TileCollider {
    }
 }
 
+class Collision {
+   delta { _delta }
+   entity { _entity }
+   side { _side }
+
+   construct new(delta, entity, side) {
+      update(delta, entity, side)
+   }
+
+   update(delta, entity, side) {
+      _delta = delta
+      _entity = entity
+      _side = side
+
+      return this
+   }
+}
+
 class Entity {
    x { _x }
    x=(x) { _x = x }
@@ -121,6 +139,9 @@ class Entity {
    dy=(dy) { _dy = dy }
 
    world { _world }
+
+   xCollide { _xCollide }
+   yCollide { _yCollide }
    
    construct new(world, x, y, w, h) {
       _world = world
@@ -130,6 +151,9 @@ class Entity {
       _h = h
       _dx = 0
       _dy = 0
+
+      _xCollide = Collision.new(0, null, 0)
+      _yCollide = Collision.new(0, null, 0)
    }
 
    collide(other, ldx, ldy) {
@@ -157,37 +181,57 @@ class Entity {
    }
 
    checkX(ldx) {
+      if (ldx == 0) {
+         return _xCollide.update(0, null, 0)
+      }
+
       var newX = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
+      var dir = ldx > 0 ? DIR_RIGHT : DIR_LEFT
+      var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
-            var tempX = this.collide(ent, ldx, 0)
-            if (ent.canCollide(this, ldx > 0 ? DIR_RIGHT : DIR_LEFT)) {
-               newX = ldx > 0 ? Math.min(newX, tempX) : Math.max(newX, tempX)
+            if (ent.canCollide(this, dir)) {
+               var tempX = this.collide(ent, ldx, 0)
+               tempX = ldx > 0 ? Math.min(newX, tempX) : Math.max(newX, tempX)
+               if (tempX != newX) {
+                  collideEnt = ent
+                  newX = tempX
+               }
             }
          }
       }
 
-      return newX
+      return _xCollide.update(newX, collideEnt, dir)
    }
 
    checkY(ldy) {
+      if (ldy == 0) {
+         return _yCollide.update(0, null, 0)
+      }
+
       var newY = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
+      var dir = ldy < 0 ? DIR_TOP : DIR_BOTTOM
+      var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
-            var tempY = this.collide(ent, 0, ldy)
-            if (ent.canCollide(this, ldy < 0 ? DIR_TOP : DIR_BOTTOM)) {
-               newY = ldy > 0 ? Math.min(newY, tempY) : Math.max(newY, tempY)
+            if (ent.canCollide(this, dir)) {
+               var tempY = this.collide(ent, 0, ldy)
+               tempY = ldy > 0 ? Math.min(newY, tempY) : Math.max(newY, tempY)
+               if (tempY != newY) {
+                  collideEnt = ent
+                  newY = tempY
+               }
             }
          }
       }
 
-      return newY
+      return _yCollide.update(newY, collideEnt, dir)
    }
 
    canCollide(other, side){ true }
-   touch(){}
+   touch(other, side){}
    think(t){}
    draw(){}
 }
@@ -263,7 +307,7 @@ class Player is Entity {
       var speed = 0
 
       // track if on the ground this frame, and track frames since leaving platform for late jump presses
-      _grounded = checkY(1) == 0
+      _grounded = checkY(1).delta == 0
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
 
       // let players jump a few frames early but don't let them hold the button down
@@ -327,22 +371,27 @@ class Player is Entity {
 
       dy = Math.min(dy, _terminalVelocity)
 
+      // move x first, then move y. don't do it at the same time, else buggy behavior
       var chkx = checkX(dx)
-      x = x + chkx
+      x = x + chkx.delta
       var chky = checkY(dy)
-      y = y + chky
+      y = y + chky.delta
 
-      if (chkx != dx) {
+      // if we hit either direction in x, stop momentum
+      if (chkx.delta != dx) {
          dx = 0
       }
 
-      if (chky != dy) {
+      if (chky.delta != dy) {
+         // if we're falling down, we've hit the ground
          if (dy > 0) {
             _grounded = true
          }
+         // either dir, nullify y movement
          dy = 0
       }
 
+      // update camera
       world.cam.window(x, y, 20)
 
       // Debug.text("x", x)
