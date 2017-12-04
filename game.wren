@@ -20,6 +20,20 @@ class Debug {
       text(val, "")
    }
 
+   static rectb(x, y, w, h, c) {
+      __rectbs.add([x, y, w, h, c])
+   }
+
+   static rect(x, y, w, h, c) {
+      __rects.add([x, y, w, h, c])
+   }
+
+   static init() {
+      __lines = []
+      __rectbs = []
+      __rects = []
+   }
+
    static text(key, val) {
       if (!__init) {
          __lines = []
@@ -29,16 +43,25 @@ class Debug {
    }
 
    static draw() {
-      if (__lines == null) {
-          return
-      }
       var y = 0
+
       for (line in __lines) {
          Tic.print(line[0], 0, y)
          Tic.print(line[1], 32, y)
          y = y + 8
       }
+
+      for (r in __rectbs) {
+         Tic.rectb(r[0], r[1], r[2], r[3], r[4])
+      }
+
+      for (r in __rects) {
+         Tic.rect(r[0], r[1], r[2], r[3], r[4])         
+      }
+      
       __lines.clear()
+      __rectbs.clear()
+      __rects.clear()
    }
 }
 
@@ -66,12 +89,12 @@ class TileCollider {
 
       for (tx in xRange) {
          for (ty in yRange) {
-            Tic.rectb(tx*8, ty*8, 8, 8, 4)
+            //Debug.rectb(tx*8, ty*8, 8, 8, 4)
             var tile = _getTile.call(tx, ty)
             if (tile > 0) {
                var dir = d < 0 ? DIR_LEFT : DIR_RIGHT
                if (resolveFn.call(dir, tile, tx, ty, d, 0) == true) {
-                  Tic.rectb(tx*8, ty*8, 8, 8, 8)
+                  //Debug.rectb(tx*8, ty*8, 8, 8, 8)
                   var check = origPos..(tx + (d >= 0 ? 0 : 1)) *_tw - (d >= 0 ? w : 0)
                   return (d < 0 ? check.max : check.min) - x
                }
@@ -89,12 +112,12 @@ class TileCollider {
 
       for (ty in yRange) {
          for (tx in xRange) {
-            Tic.rectb(tx*8, ty*8, 8, 8, 4)
+            //Debug.rectb(tx*8, ty*8, 8, 8, 4)
             var tile = _getTile.call(tx, ty)
             if (tile > 0) {
                var dir = d < 0 ? DIR_TOP : DIR_BOTTOM
                if (resolveFn.call(dir, tile, tx, ty, 0, d) == true) {
-                  Tic.rectb(tx*8, ty*8, 8, 8, 8)
+                  //Debug.rectb(tx*8, ty*8, 8, 8, 8)
                   var check = origPos..(ty + (d >= 0 ? 0 : 1)) *_th - (d >= 0 ? h : 0)
                   return (d < 0 ? check.max : check.min) - y
                }
@@ -604,8 +627,8 @@ class Scene {
 
 class Game is Engine { 
    construct new(){
+      Debug.init()
       _slomo = false
-
       Scene.level(0)
    }
    
