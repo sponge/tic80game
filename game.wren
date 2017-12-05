@@ -264,6 +264,8 @@ class LevelExit is Entity {
       super(world, ox, oy, 8, 8)
    }
 
+   canCollide(other, side){ false }
+
    draw() {
       var c = world.cam.toCamera(x, y)
       Tic.spr(254, c[0], c[1])
