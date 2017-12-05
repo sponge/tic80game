@@ -206,44 +206,44 @@ class Entity {
 
    checkX(ldx) {
       var dir = ldx > 0 ? DIR_RIGHT : DIR_LEFT
-      var newX = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
+      ldx = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
       var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
-            var tempX = this.collide(ent, newX, 0)
-            if (tempX != newX) {
+            var tempX = this.collide(ent, ldx, 0)
+            if (tempX != ldx) {
                collideEnt = ent
             }
 
             if (ent.canCollide(this, dir)) {
-               newX = ldx > 0 ? Math.min(newX, tempX) : Math.max(newX, tempX)
+               ldx = ldx > 0 ? Math.min(ldx, tempX) : Math.max(ldx, tempX)
             }
          }
       }
 
-      return _xCollide.update(newX, collideEnt, dir)
+      return _xCollide.update(ldx, collideEnt, dir)
    }
 
    checkY(ldy) {
       var dir = ldy < 0 ? DIR_TOP : DIR_BOTTOM
-      var newY = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
+      ldy = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
       var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
-            var tempY = this.collide(ent, 0, newY)
-            if (tempY != newY) {
+            var tempY = this.collide(ent, 0, ldy)
+            if (tempY != ldy) {
                collideEnt = ent
             }
 
             if (ent.canCollide(this, dir)) {
-               newY = ldy > 0 ? Math.min(newY, tempY) : Math.max(newY, tempY)
+               ldy = ldy > 0 ? Math.min(ldy, tempY) : Math.max(ldy, tempY)
             }
          }
       }
 
-      return _yCollide.update(newY, collideEnt, dir)
+      return _yCollide.update(ldy, collideEnt, dir)
    }
 
    canCollide(other, side){ true }
