@@ -132,6 +132,7 @@ class TileCollider {
 class Collision {
    delta { _delta }
    entity { _entity }
+   entity=(e) { _entity = e }
    side { _side }
 
    construct new(delta, entity, side) {
@@ -204,23 +205,19 @@ class Entity {
    }
 
    checkX(ldx) {
-      if (ldx == 0) {
-         return _xCollide.update(0, null, 0)
-      }
-
-      var newX = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
       var dir = ldx > 0 ? DIR_RIGHT : DIR_LEFT
+      var newX = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
       var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
+            var tempX = this.collide(ent, newX, 0)
+            if (tempX != newX) {
+               collideEnt = ent
+            }
+
             if (ent.canCollide(this, dir)) {
-               var tempX = this.collide(ent, ldx, 0)
-               tempX = ldx > 0 ? Math.min(newX, tempX) : Math.max(newX, tempX)
-               if (tempX != newX) {
-                  collideEnt = ent
-                  newX = tempX
-               }
+               newX = ldx > 0 ? Math.min(newX, tempX) : Math.max(newX, tempX)
             }
          }
       }
@@ -229,23 +226,19 @@ class Entity {
    }
 
    checkY(ldy) {
-      if (ldy == 0) {
-         return _yCollide.update(0, null, 0)
-      }
-
-      var newY = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
       var dir = ldy < 0 ? DIR_TOP : DIR_BOTTOM
+      var newY = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
       var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
+            var tempY = this.collide(ent, 0, newY)
+            if (tempY != newY) {
+               collideEnt = ent
+            }
+
             if (ent.canCollide(this, dir)) {
-               var tempY = this.collide(ent, 0, ldy)
-               tempY = ldy > 0 ? Math.min(newY, tempY) : Math.max(newY, tempY)
-               if (tempY != newY) {
-                  collideEnt = ent
-                  newY = tempY
-               }
+               newY = ldy > 0 ? Math.min(newY, tempY) : Math.max(newY, tempY)
             }
          }
       }
@@ -264,7 +257,7 @@ class LevelExit is Entity {
       super(world, ox, oy, 8, 8)
    }
 
-   canCollide(other, side){ false }
+   canCollide(other, side){ true }
 
    draw() {
       var c = world.cam.toCamera(x, y)
@@ -301,6 +294,7 @@ class Player is Entity {
       _pMeter = 0
       _jumpHeld = false
       _jumpHeldFrames = 0
+      _groundEnt = null
 
       // values from https://cdn.discordapp.com/attachments/191015116655951872/332350193540268033/smw_physics.png
       _friction = 0.03125
@@ -332,8 +326,12 @@ class Player is Entity {
       var speed = 0
 
       // track if on the ground this frame, and track frames since leaving platform for late jump presses
-      _grounded = checkY(1).delta == 0
+      var grav = checkY(1)
+      _grounded = grav.delta == 0
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
+      _groundEnt = grav.entity
+
+      //Debug.text("grnd", grav.entity)
 
       // let players jump a few frames early but don't let them hold the button down
       _jumpHeldFrames = jumpPress ? _jumpHeldFrames + 1 : 0
@@ -401,6 +399,9 @@ class Player is Entity {
       x = x + chkx.delta
       var chky = checkY(dy)
       y = y + chky.delta
+
+      //Debug.text("entx", chkx.entity)
+      //Debug.text("enty", chky.entity)
 
       // if we hit either direction in x, stop momentum
       if (chkx.delta != dx) {
