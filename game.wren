@@ -3,6 +3,9 @@
 // desc:   short description
 // script: wren
 
+var DIM_HORIZ = 1
+var DIM_VERT = 2
+
 var DIR_LEFT = 1
 var DIR_RIGHT = 2
 var DIR_TOP = 4
@@ -180,22 +183,27 @@ class Entity {
       _yCollide = Collision.new(0, null, 0)
    }
 
-   collide(other, ldx, ldy) {
+   // modified SAT, always resolves based on the axis passed in, not the nearest
+   // always checks one dimension per call
+   collide(other, dim, d) {
+      var ldx = dim == DIM_HORIZ ? d : 0
+      var ldy = dim == DIM_VERT ? d : 0
+
       var ox = this.x + (this.w / 2) + ldx - other.x - (other.w / 2)
       var px = (this.w / 2) + (other.w / 2) - ox.abs
 
       if (px <= 0) {
-         return ldx != 0 ? ldx : ldy
+         return d
       }
       
       var oy = this.y + (this.h / 2) + ldy - other.y - (other.h / 2)
       var py = (this.h / 2) + (other.h / 2) - oy.abs
 
       if (py <= 0) {
-         return ldx != 0 ? ldx : ldy
+         return d
       }
 
-      if (ldx != 0) {
+      if (dim == DIM_HORIZ) {
          var rx = ldx + px * Math.sign(ox)
          return rx 
       } else {
@@ -204,46 +212,46 @@ class Entity {
       }
    }
 
-   checkX(ldx) {
-      var dir = ldx > 0 ? DIR_RIGHT : DIR_LEFT
-      ldx = _world.tileCollider.queryX(_x, _y, _w, _h, ldx, resolve)
+   checkX(d) {
+      var dir = d > 0 ? DIR_RIGHT : DIR_LEFT
+      d = _world.tileCollider.queryX(_x, _y, _w, _h, d, resolve)
       var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
-            var tempX = this.collide(ent, ldx, 0)
-            if (tempX != ldx) {
+            var tmp = this.collide(ent, DIM_HORIZ, d)
+            if (tmp != d) {
                collideEnt = ent
             }
 
             if (ent.canCollide(this, dir)) {
-               ldx = ldx > 0 ? Math.min(ldx, tempX) : Math.max(ldx, tempX)
+               d = d > 0 ? Math.min(d, tmp) : Math.max(d, tmp)
             }
          }
       }
 
-      return _xCollide.update(ldx, collideEnt, dir)
+      return _xCollide.update(d, collideEnt, dir)
    }
 
-   checkY(ldy) {
-      var dir = ldy < 0 ? DIR_TOP : DIR_BOTTOM
-      ldy = _world.tileCollider.queryY(_x, _y, _w, _h, ldy, resolve)
+   checkY(d) {
+      var dir = d < 0 ? DIR_TOP : DIR_BOTTOM
+      d = _world.tileCollider.queryY(_x, _y, _w, _h, d, resolve)
       var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
-            var tempY = this.collide(ent, 0, ldy)
-            if (tempY != ldy) {
+            var tmp = this.collide(ent, DIM_VERT, d)
+            if (tmp != d) {
                collideEnt = ent
             }
 
             if (ent.canCollide(this, dir)) {
-               ldy = ldy > 0 ? Math.min(ldy, tempY) : Math.max(ldy, tempY)
+               d = d > 0 ? Math.min(d, tmp) : Math.max(d, tmp)
             }
          }
       }
 
-      return _yCollide.update(ldy, collideEnt, dir)
+      return _yCollide.update(d, collideEnt, dir)
    }
 
    canCollide(other, side){ true }
@@ -331,7 +339,7 @@ class Player is Entity {
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
       _groundEnt = _grounded ? grav.entity : null
 
-      //Debug.text("grnd", grav.entity)
+      Debug.text("grnd", grav.entity)
 
       // let players jump a few frames early but don't let them hold the button down
       _jumpHeldFrames = jumpPress ? _jumpHeldFrames + 1 : 0
@@ -400,8 +408,13 @@ class Player is Entity {
       var chky = checkY(dy)
       y = y + chky.delta
 
-      //Debug.text("entx", chkx.entity)
-      //Debug.text("enty", chky.entity)
+      // don't trigger the same entity twice
+      if (chkx.entity == chky.entity) {
+         chky.entity = null
+      }
+
+      Debug.text("entx", chkx.entity)
+      Debug.text("enty", chky.entity)
 
       // if we hit either direction in x, stop momentum
       if (chkx.delta != dx) {
