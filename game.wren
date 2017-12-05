@@ -329,7 +329,7 @@ class Player is Entity {
       var grav = checkY(1)
       _grounded = grav.delta == 0
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
-      _groundEnt = grav.entity
+      _groundEnt = _grounded ? grav.entity : null
 
       //Debug.text("grnd", grav.entity)
 
