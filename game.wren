@@ -85,50 +85,50 @@ class TileCollider {
       return gx..gx2
    }
 
-   queryX(x, y, w, h, d, resolveFn) {
-      var origPos = x + d
-      var xRange = getTileRange(_tw, x, w, d)
-      var yRange = getTileRange(_th, y, h, 0)
+   query(x, y, w, h, dim, d, resolveFn) {
+      if (dim == DIM_HORIZ) {
+         var origPos = x + d
+         var xRange = getTileRange(_tw, x, w, d)
+         var yRange = getTileRange(_th, y, h, 0)
 
-      for (tx in xRange) {
-         for (ty in yRange) {
-            //Debug.rectb(tx*8, ty*8, 8, 8, 4)
-            var tile = _getTile.call(tx, ty)
-            if (tile > 0) {
-               var dir = d < 0 ? DIR_LEFT : DIR_RIGHT
-               if (resolveFn.call(dir, tile, tx, ty, d, 0) == true) {
-                  //Debug.rectb(tx*8, ty*8, 8, 8, 8)
-                  var check = origPos..(tx + (d >= 0 ? 0 : 1)) *_tw - (d >= 0 ? w : 0)
-                  return (d < 0 ? check.max : check.min) - x
-               }
-            }
-         }
-      }
-
-      return d
-   }
-
-   queryY(x, y, w, h, d, resolveFn) {
-      var origPos = y + d
-      var xRange = getTileRange(_tw, x, w, 0)
-      var yRange = getTileRange(_th, y, h, d)
-
-      for (ty in yRange) {
          for (tx in xRange) {
-            //Debug.rectb(tx*8, ty*8, 8, 8, 4)
-            var tile = _getTile.call(tx, ty)
-            if (tile > 0) {
-               var dir = d < 0 ? DIR_TOP : DIR_BOTTOM
-               if (resolveFn.call(dir, tile, tx, ty, 0, d) == true) {
-                  //Debug.rectb(tx*8, ty*8, 8, 8, 8)
-                  var check = origPos..(ty + (d >= 0 ? 0 : 1)) *_th - (d >= 0 ? h : 0)
-                  return (d < 0 ? check.max : check.min) - y
+            for (ty in yRange) {
+               //Debug.rectb(tx*8, ty*8, 8, 8, 4)
+               var tile = _getTile.call(tx, ty)
+               if (tile > 0) {
+                  var dir = d < 0 ? DIR_LEFT : DIR_RIGHT
+                  if (resolveFn.call(dir, tile, tx, ty, d, 0) == true) {
+                     //Debug.rectb(tx*8, ty*8, 8, 8, 8)
+                     var check = origPos..(tx + (d >= 0 ? 0 : 1)) *_tw - (d >= 0 ? w : 0)
+                     return (d < 0 ? check.max : check.min) - x
+                  }
                }
             }
          }
-      }
 
-      return d
+         return d
+      } else {
+         var origPos = y + d
+         var xRange = getTileRange(_tw, x, w, 0)
+         var yRange = getTileRange(_th, y, h, d)
+
+         for (ty in yRange) {
+            for (tx in xRange) {
+               //Debug.rectb(tx*8, ty*8, 8, 8, 4)
+               var tile = _getTile.call(tx, ty)
+               if (tile > 0) {
+                  var dir = d < 0 ? DIR_TOP : DIR_BOTTOM
+                  if (resolveFn.call(dir, tile, tx, ty, 0, d) == true) {
+                     //Debug.rectb(tx*8, ty*8, 8, 8, 8)
+                     var check = origPos..(ty + (d >= 0 ? 0 : 1)) *_th - (d >= 0 ? h : 0)
+                     return (d < 0 ? check.max : check.min) - y
+                  }
+               }
+            }
+         }
+
+         return d
+      }
    }
 }
 
@@ -212,14 +212,15 @@ class Entity {
       }
    }
 
-   checkX(d) {
-      var dir = d > 0 ? DIR_RIGHT : DIR_LEFT
-      d = _world.tileCollider.queryX(_x, _y, _w, _h, d, resolve)
+   check(dim, d) {
+      var dir = dim == DIM_HORIZ ? (d > 0 ? DIR_RIGHT : DIR_LEFT) : (d > 0 ? DIR_TOP : DIR_BOTTOM)
+      d = _world.tileCollider.query(_x, _y, _w, _h, dim, d, resolve)
+
       var collideEnt = null
 
       for (ent in _world.entities) {
          if (ent != this && ent.w > 0 && ent.h > 0) {
-            var tmp = this.collide(ent, DIM_HORIZ, d)
+            var tmp = this.collide(ent, dim, d)
             if (tmp != d) {
                collideEnt = ent
             }
@@ -230,28 +231,8 @@ class Entity {
          }
       }
 
-      return _xCollide.update(d, collideEnt, dir)
-   }
-
-   checkY(d) {
-      var dir = d < 0 ? DIR_TOP : DIR_BOTTOM
-      d = _world.tileCollider.queryY(_x, _y, _w, _h, d, resolve)
-      var collideEnt = null
-
-      for (ent in _world.entities) {
-         if (ent != this && ent.w > 0 && ent.h > 0) {
-            var tmp = this.collide(ent, DIM_VERT, d)
-            if (tmp != d) {
-               collideEnt = ent
-            }
-
-            if (ent.canCollide(this, dir)) {
-               d = d > 0 ? Math.min(d, tmp) : Math.max(d, tmp)
-            }
-         }
-      }
-
-      return _yCollide.update(d, collideEnt, dir)
+      var member = dim == DIM_HORIZ ? _xCollide : _yCollide
+      return member.update(d, collideEnt, dir)
    }
 
    canCollide(other, side){ true }
@@ -334,7 +315,7 @@ class Player is Entity {
       var speed = 0
 
       // track if on the ground this frame, and track frames since leaving platform for late jump presses
-      var grav = checkY(1)
+      var grav = check(DIM_VERT, 1)
       _grounded = grav.delta == 0
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
       _groundEnt = _grounded ? grav.entity : null
@@ -403,9 +384,9 @@ class Player is Entity {
       dy = Math.min(dy, _terminalVelocity)
 
       // move x first, then move y. don't do it at the same time, else buggy behavior
-      var chkx = checkX(dx)
+      var chkx = check(DIM_HORIZ, dx)
       x = x + chkx.delta
-      var chky = checkY(dy)
+      var chky = check(DIM_VERT, dy)
       y = y + chky.delta
 
       // don't trigger the same entity twice
