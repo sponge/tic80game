@@ -18,6 +18,45 @@ class Math {
    static clamp(min, val, max) { val > max ? max : val < min ? min : val }
 }
 
+class Timer {
+   static init() {
+      __fibers = []
+   }
+
+   static clear() {
+      __fibers.clear()
+   }
+
+   static runLater(time, func) {
+      var f = Fiber.new {
+         while (time > 0) {
+            var t = Fiber.yield()
+            time = time - t
+         }
+
+         func.call()
+      }
+
+      __fibers.add(f)
+   }
+
+   static tick(t) {
+      for (f in __fibers) {
+         f.call(t)
+      }
+
+      if (__fibers.count == 0) {
+         return
+      }
+      
+      for (i in __fibers.count-1..0) {
+         if (__fibers[i].isDone) {
+            __fibers.removeAt(i)
+         }
+      }
+   }
+}
+
 class Debug {
    static text(val) {
       text(val, "")
@@ -308,7 +347,6 @@ class Player is Entity {
       }
    }
    
-
    think(t) {
       var dir = Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
       var jumpPress = Tic.btn(4)
@@ -586,16 +624,14 @@ class World {
 class Intro {
    construct new(num) {
       _num = num
-      _t = 0
+
+      Timer.runLater(120, Fn.new {
+         Scene.level(_num)
+      })
    }
 
-   update(dt) {
-      _t = _t + dt
+   update(t) {
 
-      if (_t > 120) {
-         Scene.level(_num)
-         return
-      }
    }
 
    draw() {
@@ -606,10 +642,12 @@ class Intro {
 
 class Scene {
    static intro(num) {
-     __world = Intro.new(num)
+      Timer.clear()
+      __world = Intro.new(num)
    }
 
    static level(num) {
+      Timer.clear()
       __world = World.new(num)
    }
 
@@ -625,8 +663,9 @@ class Scene {
 class Game is Engine { 
    construct new(){
       Debug.init()
+      Timer.init()
       _slomo = false
-      Scene.level(0)
+      Scene.intro(0)
    }
    
    update(){
@@ -637,6 +676,7 @@ class Game is Engine {
       if (!_slomo || Tic.btnp(6, 1, 30)) {
          Scene.update(1)
          Scene.draw()
+         Timer.tick(1)
          Debug.draw()
       }
    }
