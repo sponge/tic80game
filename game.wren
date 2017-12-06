@@ -235,6 +235,16 @@ class Entity {
       return member.update(d, collideEnt, dir)
    }
 
+   triggerTouch() {
+      if (_xCollide.entity != null) {
+         _xCollide.entity.touch(this, _xCollide.side == DIR_LEFT ? DIR_RIGHT : DIR_LEFT)
+      }
+
+      if (_yCollide.entity != null) {
+         _yCollide.entity.touch(this, _yCollide.side == DIR_TOP ? DIR_BOTTOM : DIR_TOP)
+      }
+   }
+
    canCollide(other, side){ true }
    touch(other, side){}
    think(t){}
@@ -246,16 +256,23 @@ class LevelExit is Entity {
       super(world, ox, oy, 8, 8)
    }
 
-   canCollide(other, side){ true }
+   canCollide(other, side){ false }
 
    draw() {
       var c = world.cam.toCamera(x, y)
       Tic.spr(254, c[0], c[1])
    }
+
+   touch(other, side) {
+      if (other is Player) {
+         other.disableControls = true
+      }
+   }
 }
 
 class Player is Entity {
    resolve { _resolve }
+   disableControls=(b) { _disableControls = b }
    
    construct new(world, ox, oy) {
       super(world, ox, oy, 7, 12)
@@ -284,6 +301,7 @@ class Player is Entity {
       _jumpHeld = false
       _jumpHeldFrames = 0
       _groundEnt = null
+      _disableControls = false
 
       // values from https://cdn.discordapp.com/attachments/191015116655951872/332350193540268033/smw_physics.png
       _friction = 0.03125
@@ -310,8 +328,8 @@ class Player is Entity {
    
 
    think(t) {
-      var dir = Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
-      var jumpPress = Tic.btn(4)
+      var dir = _disableControls ? 0 : Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
+      var jumpPress = _disableControls ? false : Tic.btn(4)
       var speed = 0
 
       // track if on the ground this frame, and track frames since leaving platform for late jump presses
@@ -393,6 +411,8 @@ class Player is Entity {
       if (chkx.entity == chky.entity) {
          chky.entity = null
       }
+
+      triggerTouch()
 
       Debug.text("entx", chkx.entity)
       Debug.text("enty", chky.entity)
