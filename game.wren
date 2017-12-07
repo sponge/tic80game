@@ -310,7 +310,7 @@ class LevelExit is Entity {
          active = false
          other.disableControls = true
          Timer.runLater(120, Fn.new {
-            Scene.intro(world.levelNum)
+            Scene.intro(world.levelNum + 1)
          })
       }
    }
@@ -574,6 +574,20 @@ class Camera {
    }
 }
 
+class Level {
+   x { _x }
+   y { _y }
+   w { _w }
+   h { _h }
+
+   construct new(x, y, w, h) {
+      _x = x
+      _y = y
+      _w = w
+      _h = h
+   }
+}
+
 class World {
    time { _time }
    tileCollider { _tileCollider }
@@ -585,20 +599,22 @@ class World {
       _entities = []
       _time = 0
       _levels = [
-         {"x": 0, "y": 0, "w": 43, "h": 17}
+         Level.new(0, 0, 43, 17),
+         Level.new(45, 0, 30, 17)
       ]
+
       _level = _levels[i]
       _levelNum = i
       _cam = Camera.new(8, 8, 240, 136)
-      _cam.constrain(_level["x"], _level["y"], _level["w"]*8, _level["h"]*8)
+      _cam.constrain(_level.x*8, _level.y*8, _level.w*8, _level.h*8)
 
       var entmappings = {
          255: Player,
          254: LevelExit
       }
 
-      for (y in _level["y"].._level["y"]+_level["h"]) {
-         for (x in _level["x"].._level["x"]+_level["w"]) {
+      for (y in _level.y.._level.y+_level.h) {
+         for (x in _level.x.._level.x+_level.w) {
             var i = Tic.mget(x, y)
             var e = entmappings[i]
             if (e != null) {
@@ -615,7 +631,7 @@ class World {
       }
 
       _getTile = Fn.new { |x, y|
-         if (x < 0 || x > _level["w"]-1) {
+         if (x < _level.x || x >= _level.x + _level.w) {
             return 1
          }
          
@@ -681,6 +697,7 @@ class Scene {
 
    static level(num) {
       Timer.clear()
+      num = num % 2
       __world = World.new(num)
    }
 
