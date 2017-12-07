@@ -203,6 +203,8 @@ class Entity {
    dx=(dx) { _dx = dx }
    dy { _dy }
    dy=(dy) { _dy = dy }
+   active { _active }
+   active=(a) { _active = a }
 
    world { _world }
 
@@ -211,6 +213,7 @@ class Entity {
    
    construct new(world, x, y, w, h) {
       _world = world
+      _active = true
       _x = x
       _y = y - (8 - h)
       _w = w
@@ -304,7 +307,11 @@ class LevelExit is Entity {
 
    touch(other, side) {
       if (other is Player) {
+         active = false
          other.disableControls = true
+         Timer.runLater(120, Fn.new {
+            Scene.intro(world.levelNum)
+         })
       }
    }
 }
@@ -375,8 +382,6 @@ class Player is Entity {
       _grounded = grav.delta == 0
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
       _groundEnt = _grounded ? grav.entity : null
-
-      Debug.text("grnd", grav.entity)
 
       // let players jump a few frames early but don't let them hold the button down
       _jumpHeldFrames = jumpPress ? _jumpHeldFrames + 1 : 0
@@ -452,9 +457,6 @@ class Player is Entity {
 
       triggerTouch()
 
-      Debug.text("entx", chkx.entity)
-      Debug.text("enty", chky.entity)
-
       // if we hit either direction in x, stop momentum
       if (chkx.delta != dx) {
          dx = 0
@@ -472,6 +474,9 @@ class Player is Entity {
       // update camera
       world.cam.window(x, y, 20)
 
+      // Debug.text("grnd", grav.entity)
+      // Debug.text("entx", chkx.entity)
+      // Debug.text("enty", chky.entity)
       // Debug.text("x", x)
       // Debug.text("y", y)
       // Debug.text("dx", dx)
@@ -574,6 +579,7 @@ class World {
    tileCollider { _tileCollider }
    cam { _cam }
    entities { _entities }
+   levelNum { _levelNum }
 
    construct new(i) {
       _entities = []
@@ -582,6 +588,7 @@ class World {
          {"x": 0, "y": 0, "w": 43, "h": 17}
       ]
       _level = _levels[i]
+      _levelNum = i
       _cam = Camera.new(8, 8, 240, 136)
       _cam.constrain(_level["x"], _level["y"], _level["w"]*8, _level["h"]*8)
 
@@ -628,6 +635,12 @@ class World {
 
       for (ent in _entities) {
          ent.think(_time)
+      }
+
+      for (i in _entities.count-1..0) {
+         if (_entities[i].active == false) {
+            _entities.removeAt(i)
+         }
       }
    }
 
@@ -685,7 +698,7 @@ class Game is Engine {
       Debug.init()
       Timer.init()
       _slomo = false
-      Scene.intro(0)
+      Scene.level(0)
    }
    
    update(){
