@@ -58,10 +58,6 @@ class Timer {
 }
 
 class Debug {
-   static text(val) {
-      text(val, "")
-   }
-
    static rectb(x, y, w, h, c) {
       __rectbs.add([x, y, w, h, c])
    }
@@ -76,6 +72,10 @@ class Debug {
       __rects = []
    }
 
+   static text(val) {
+      text(val, "")
+   }
+
    static text(key, val) {
       if (!__init) {
          __lines = []
@@ -85,12 +85,12 @@ class Debug {
    }
 
    static draw() {
-      var y = 0
+      var y = 130
 
       for (line in __lines) {
          Tic.print(line[0], 0, y)
          Tic.print(line[1], 32, y)
-         y = y + 8
+         y = y - 8
       }
 
       for (r in __rectbs) {
@@ -339,15 +339,35 @@ class LevelExit is Entity {
 
       active = false
       other.disableControls = true
-      Timer.runLater(120, Fn.new {
+      world.entities.add(ExitBanner.new(world))
+      world.drawHud = false
+      Timer.runLater(360, Fn.new {
          Scene.intro(world.levelNum + 1)
       })
+   }
+}
+
+class ExitBanner is Entity {
+   construct new(world) {
+      super(world, 0, 0, 0, 0)
+   }
+
+   draw(t) {
+      Tic.rect(0, 40, 240, 56, 5)
+      Tic.print("Level Cleared", 45, 45, 15, false, 2)
+      Tic.print("Now, lets move on to the next one!", 27, 60)
+      if (world.totalCoins > 0) {
+         var pct = (world.coins / world.totalCoins *100).floor
+         Tic.print("Coins ........ %(pct)\%", 60, 75, 15, true)
+      }
    }
 }
 
 class Player is Entity {
    resolve { _resolve }
    disableControls=(b) { _disableControls = b }
+   pMeter { _pMeter }
+   pMeterCapacity { _pMeterCapacity }
    
    construct new(world, ox, oy) {
       super(world, ox, oy, 7, 12)
@@ -513,7 +533,6 @@ class Player is Entity {
       // Debug.text("spd", speed)
       // Debug.text("jmp", _jumpHeldFrames)
       // Debug.text("gnd", _grounded)
-      Debug.text("P>>>", "%((_pMeter/_pMeterCapacity * 100).floor)\%")
 
    }
 
@@ -631,12 +650,15 @@ class World {
    coins=(c) { _coins = c }
    totalCoins { _totalCoins }
    totalCoins=(c) { _totalCoins = c }
+   drawHud { _drawHud }
+   drawHud=(b) { _drawHud = b }
 
    construct new(i) {
       _entities = []
       _coins = 0
       _totalCoins = 0
       _time = 0
+      _drawHud = true
       _levels = [
          Level.new(0, 0, 43, 17),
          Level.new(45, 0, 30, 17)
@@ -658,8 +680,13 @@ class World {
             var i = Tic.mget(x, y)
             var e = entmappings[i]
             if (e != null) {
-               _entities.add(e.new(this, x*8, y*8))
+               var ent = e.new(this, x*8, y*8)
+               _entities.add(ent)
+               if (ent is Player) {
+                   _player = ent
+               }
             }
+
          }
       }
 
@@ -708,8 +735,13 @@ class World {
          ent.draw(t)
       }
 
-      Tic.print("Coins: %(_coins) / %(_totalCoins)", 80, 0)
-
+      if (_drawHud && _player != null) {
+         var pct = (_player.pMeter / _player.pMeterCapacity * 100).floor
+         Tic.rect(0, 0, 240, 12, 1)
+         Tic.spr(256, 110, 1, 0)  
+         Tic.print("%(_coins)/%(_totalCoins)", 120, 3, 15, true)
+         Tic.print("P>>> %(pct)\%", 4, 3, 15, true)
+      }
    }
 }
 
