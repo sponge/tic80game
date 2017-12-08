@@ -199,6 +199,10 @@ class Entity {
    w=(w) { _w = w }
    h { _h }
    h=(h) { _h = h }
+   cx { _cx }
+   cx=(cx) { _cx = cx }
+   cy { _cy }
+   cy=(cy) { _cy = cy }
    dx { _dx }
    dx=(dx) { _dx = dx }
    dy { _dy }
@@ -220,6 +224,8 @@ class Entity {
       _h = h
       _dx = 0
       _dy = 0
+      _cx = 0
+      _cy = 0
 
       _xCollide = Collision.new(0, null, 0)
       _yCollide = Collision.new(0, null, 0)
@@ -289,8 +295,30 @@ class Entity {
 
    canCollide(other, side){ true }
    touch(other, side){}
-   think(t){}
-   draw(){}
+   think(dt){}
+   draw(t){}
+}
+
+class Coin is Entity {
+   construct new(world, ox, oy) {
+      super(world, ox, oy, 8, 8)
+      world.totalCoins = world.totalCoins + 1
+   }
+
+   canCollide(other, side) { false }
+
+   touch(other, side) {
+      if (other is Player == false) {
+         return
+      }
+
+      active = false
+      world.coins = world.coins + 1
+   }
+
+   draw(t) {
+      Tic.spr(256 + (t / 8 % 4).floor, cx, cy, 0)      
+   }
 }
 
 class LevelExit is Entity {
@@ -300,19 +328,20 @@ class LevelExit is Entity {
 
    canCollide(other, side){ false }
 
-   draw() {
-      var c = world.cam.toCamera(x, y)
-      Tic.spr(254, c[0], c[1])
+   draw(t) {
+      Tic.spr(254, cx, cy)
    }
 
    touch(other, side) {
-      if (other is Player) {
-         active = false
-         other.disableControls = true
-         Timer.runLater(120, Fn.new {
-            Scene.intro(world.levelNum + 1)
-         })
+      if (other is Player == false) {
+         return
       }
+
+      active = false
+      other.disableControls = true
+      Timer.runLater(120, Fn.new {
+         Scene.intro(world.levelNum + 1)
+      })
    }
 }
 
@@ -372,7 +401,7 @@ class Player is Entity {
       }
    }
    
-   think(t) {
+   think(dt) {
       var dir = _disableControls ? 0 : Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
       var jumpPress = _disableControls ? false : Tic.btn(4)
       var speed = 0
@@ -488,9 +517,8 @@ class Player is Entity {
 
    }
 
-   draw() {
-      var c = world.cam.toCamera(x, y)
-      Tic.rect(c[0], c[1], w, h, 14)
+   draw(t) {
+      Tic.rect(cx, cy, w, h, 14)
    }
 }
 
@@ -565,6 +593,11 @@ class Camera {
       move(x - _w/2, y - _h/2)
    }
 
+   entToCamera(ent) {
+      ent.cx = ent.x - x
+      ent.cy = ent.y - y
+   }
+
    toCamera(px,py) {
       return [px - x, py - y] 
    }
@@ -594,9 +627,15 @@ class World {
    cam { _cam }
    entities { _entities }
    levelNum { _levelNum }
+   coins { _coins }
+   coins=(c) { _coins = c }
+   totalCoins { _totalCoins }
+   totalCoins=(c) { _totalCoins = c }
 
    construct new(i) {
       _entities = []
+      _coins = 0
+      _totalCoins = 0
       _time = 0
       _levels = [
          Level.new(0, 0, 43, 17),
@@ -610,7 +649,8 @@ class World {
 
       var entmappings = {
          255: Player,
-         254: LevelExit
+         254: LevelExit,
+         253: Coin
       }
 
       for (y in _level.y.._level.y+_level.h) {
@@ -660,12 +700,15 @@ class World {
       }
    }
 
-   draw() {
+   draw(t) {
       Tic.map(_cam.tx, _cam.ty, _cam.tw, _cam.th, 0 - _cam.x % 8, 0 - _cam.y % 8, -1, 1, _remap)
 
       for (ent in _entities) {
-         ent.draw()
+         cam.entToCamera(ent)
+         ent.draw(t)
       }
+
+      Tic.print("Coins: %(_coins) / %(_totalCoins)", 80, 0)
 
    }
 }
@@ -683,7 +726,7 @@ class Intro {
 
    }
 
-   draw() {
+   draw(t) {
       Tic.cls(2)
       Tic.print("ENTERING LEVEL %(_num+1)", 70, 60)
    }
@@ -705,8 +748,8 @@ class Scene {
       __world.update(i)
    }
 
-   static draw() {
-      __world.draw()
+   static draw(t) {
+      __world.draw(t)
    }
 }
 
@@ -715,17 +758,19 @@ class Game is Engine {
       Debug.init()
       Timer.init()
       _slomo = false
+      _time = 0
       Scene.level(0)
    }
    
    update(){
+      _time = _time + 1
       if (Tic.btnp(7, 1, 60)) {
          _slomo = !_slomo
       }
 
       if (!_slomo || Tic.btnp(6, 1, 30)) {
          Scene.update(1)
-         Scene.draw()
+         Scene.draw(_time)
          Timer.tick(1)
          Debug.draw()
       }
