@@ -215,7 +215,7 @@ class Entity {
    xCollide { _xCollide }
    yCollide { _yCollide }
    
-   construct new(world, x, y, w, h, t) {
+   construct new(world, ti, x, y, w, h) {
       _world = world
       _active = true
       _x = x
@@ -300,8 +300,8 @@ class Entity {
 }
 
 class MovingPlatform is Entity {
-   construct new(world, ox, oy, t) {
-      super(world, ox, oy + 4, 24, 4, t)
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy + 4, 24, 4)
    }
 
    canCollide(other, side) { true }
@@ -316,8 +316,8 @@ class MovingPlatform is Entity {
 }
 
 class Coin is Entity {
-   construct new(world, ox, oy, t) {
-      super(world, ox, oy, 8, 8, t)
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy, 8, 8)
       world.totalCoins = world.totalCoins + 1
    }
 
@@ -338,8 +338,8 @@ class Coin is Entity {
 }
 
 class LevelExit is Entity {
-   construct new(world, ox, oy, t) {
-      super(world, ox, oy, 8, 8, t)
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy, 8, 8)
    }
 
    canCollide(other, side){ false }
@@ -385,8 +385,8 @@ class Player is Entity {
    pMeter { _pMeter }
    pMeterCapacity { _pMeterCapacity }
    
-   construct new(world, ox, oy, t) {
-      super(world, ox, oy - 4, 7, 12, t)
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy - 4, 7, 12)
 
       _resolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
          if (tile == 0) {
@@ -700,7 +700,7 @@ class World {
             var i = Tic.mget(x, y)
             var e = entmappings[i]
             if (e != null) {
-               var ent = e.new(this, x*8, y*8, i)
+               var ent = e.new(this, i, x*8, y*8)
                _entities.add(ent)
                if (ent is Player) {
                    _player = ent
