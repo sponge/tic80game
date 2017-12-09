@@ -215,11 +215,11 @@ class Entity {
    xCollide { _xCollide }
    yCollide { _yCollide }
    
-   construct new(world, x, y, w, h) {
+   construct new(world, x, y, w, h, t) {
       _world = world
       _active = true
       _x = x
-      _y = y - (8 - h)
+      _y = y
       _w = w
       _h = h
       _dx = 0
@@ -299,9 +299,25 @@ class Entity {
    draw(t){}
 }
 
+class MovingPlatform is Entity {
+   construct new(world, ox, oy, t) {
+      super(world, ox, oy + 4, 24, 4, t)
+   }
+
+   canCollide(other, side) { true }
+
+   think(dt) {
+      
+   }
+
+   draw(t) {
+      Tic.rect(cx, cy, w, h, 4)
+   }
+}
+
 class Coin is Entity {
-   construct new(world, ox, oy) {
-      super(world, ox, oy, 8, 8)
+   construct new(world, ox, oy, t) {
+      super(world, ox, oy, 8, 8, t)
       world.totalCoins = world.totalCoins + 1
    }
 
@@ -322,8 +338,8 @@ class Coin is Entity {
 }
 
 class LevelExit is Entity {
-   construct new(world, ox, oy) {
-      super(world, ox, oy, 8, 8)
+   construct new(world, ox, oy, t) {
+      super(world, ox, oy, 8, 8, t)
    }
 
    canCollide(other, side){ false }
@@ -349,7 +365,7 @@ class LevelExit is Entity {
 
 class ExitBanner is Entity {
    construct new(world) {
-      super(world, 0, 0, 0, 0)
+      super(world, 0, 0, 0, 0, 0)
    }
 
    draw(t) {
@@ -369,8 +385,8 @@ class Player is Entity {
    pMeter { _pMeter }
    pMeterCapacity { _pMeterCapacity }
    
-   construct new(world, ox, oy) {
-      super(world, ox, oy, 7, 12)
+   construct new(world, ox, oy, t) {
+      super(world, ox, oy - 4, 7, 12, t)
 
       _resolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
          if (tile == 0) {
@@ -672,7 +688,11 @@ class World {
       var entmappings = {
          255: Player,
          254: LevelExit,
-         253: Coin
+         253: Coin,
+         248: MovingPlatform,
+         247: MovingPlatform,
+         246: MovingPlatform,
+         245: MovingPlatform,
       }
 
       for (y in _level.y.._level.y+_level.h) {
@@ -680,7 +700,7 @@ class World {
             var i = Tic.mget(x, y)
             var e = entmappings[i]
             if (e != null) {
-               var ent = e.new(this, x*8, y*8)
+               var ent = e.new(this, x*8, y*8, i)
                _entities.add(ent)
                if (ent is Player) {
                    _player = ent
