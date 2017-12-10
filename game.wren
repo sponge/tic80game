@@ -261,25 +261,25 @@ class Entity {
    }
 
    check(dim, d) {
+      var member = dim == DIM_HORIZ ? _xCollide : _yCollide
       var dir = dim == DIM_HORIZ ? (d > 0 ? DIR_RIGHT : DIR_LEFT) : (d > 0 ? DIR_TOP : DIR_BOTTOM)
       d = _world.tileCollider.query(_x, _y, _w, _h, dim, d, resolve)
 
       var collideEnt = null
 
       for (ent in _world.entities) {
-         if (ent != this && ent.w > 0 && ent.h > 0) {
+         if (ent != this && (ent.w > 0 || ent.h > 0)) {
             var tmp = this.collide(ent, dim, d)
             if (tmp != d) {
                collideEnt = ent
-            }
 
-            if (ent.canCollide(this, dir)) {
-               d = d > 0 ? Math.min(d, tmp) : Math.max(d, tmp)
+               if (ent.canCollide(this, dir, d)) {
+                  d = d > 0 ? Math.min(d, tmp) : Math.max(d, tmp)
+               }
             }
          }
       }
 
-      var member = dim == DIM_HORIZ ? _xCollide : _yCollide
       return member.update(d, collideEnt, dir)
    }
 
@@ -293,7 +293,7 @@ class Entity {
       }
    }
 
-   canCollide(other, side){ true }
+   canCollide(other, side, d){ true }
    touch(other, side){}
    think(dt){}
    draw(t){}
@@ -301,17 +301,88 @@ class Entity {
 
 class MovingPlatform is Entity {
    construct new(world, ti, ox, oy) {
-      super(world, ti, ox, oy + 4, 24, 4)
+      super(world, ti, ox, oy, 24, 0)
+      _dist = 0
+      _d = 0
+
+      _resolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
+         if (tx == _ignoreX && ty == _ignoreY) {
+            return false
+         }
+
+         if (tile >= 245 && tile <= 252) {
+            return true
+         }
+
+         return false
+      }
+
+      setDirection(ti)
+      setNextPoint()
    }
 
-   canCollide(other, side) { true }
+   canCollide(other, side, d) {
+      //Debug.text("ret", "%(side) == %(DIR_TOP) && %(other.y)+%(other.h) <= %(y) && %(other.y)+%(other.h)+%(other.dy) > %(y)")
+      return side == DIR_TOP && other.y+other.h <= y && other.y+other.h+d > y
+   }
+
+   setDirection(ti) {
+      ti = ti - 245
+      if (ti > 3) {
+         ti = ti - 4
+      }
+
+      _dim = ti % 2 == 0 ? DIM_VERT : DIM_HORIZ
+      _d = ti == 0 || ti == 3 ? -0.5 : 0.5
+   }
+
+   setNextPoint() {
+      if (_d == 0 || _dim == 0 || _dist > 0) {
+         return
+      }
+
+      _ignoreX = x / 8
+      _ignoreY = y / 8
+
+      var t = Tic.mget(_ignoreX, _ignoreY)
+      setDirection(t)
+
+      _dist = world.tileCollider.query(x, y, 1, 1, _dim, _d*2048, _resolve)
+
+      if (_dist.abs == 2048) {
+         _d = 0
+         return
+      }
+
+      _dist = _dist.abs + (_d > 0 ? 1 : 8)
+   }
 
    think(dt) {
-      
+      if (_movedTime == world.time) {
+         return
+      }
+      _movedTime = world.time
+
+      setNextPoint()
+
+      dx = (_dim == DIM_HORIZ ? _d : 0)
+      dy = (_dim == DIM_VERT ? _d : 0)
+      _dist = _dist - _d.abs
+
+      // more rotten code: if the player's step misses us but we would hit them, snap them onto the surface
+      // could probably improve this using collision code
+      if (dy < 0 && world.player.y + world.player.h <= y && world.player.y + world.player.h > y + dy) {
+         world.player.y = y + dy - world.player.h
+      }
+
+      x = x + dx
+      y = y + dy
+
+      //Debug.text("p", "%(x),%(y) %(_dist)s")
    }
 
    draw(t) {
-      Tic.rect(cx, cy, w, h, 4)
+      Tic.rect(cx, cy, w, 4, 4)
    }
 }
 
@@ -321,7 +392,7 @@ class Coin is Entity {
       world.totalCoins = world.totalCoins + 1
    }
 
-   canCollide(other, side) { false }
+   canCollide(other, side, d) { false }
 
    touch(other, side) {
       if (other is Player == false) {
@@ -342,7 +413,7 @@ class LevelExit is Entity {
       super(world, ti, ox, oy, 8, 8)
    }
 
-   canCollide(other, side){ false }
+   canCollide(other, side, d){ false }
 
    draw(t) {
       Tic.spr(254, cx, cy)
@@ -384,6 +455,7 @@ class Player is Entity {
    disableControls=(b) { _disableControls = b }
    pMeter { _pMeter }
    pMeterCapacity { _pMeterCapacity }
+   groundEnt { _groundEnt }
    
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy - 4, 7, 12)
@@ -436,7 +508,7 @@ class Player is Entity {
             0: 2.40625
       }
    }
-   
+
    think(dt) {
       var dir = _disableControls ? 0 : Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
       var jumpPress = _disableControls ? false : Tic.btn(4)
@@ -444,9 +516,22 @@ class Player is Entity {
 
       // track if on the ground this frame, and track frames since leaving platform for late jump presses
       var grav = check(DIM_VERT, 1)
-      _grounded = grav.delta == 0
+      _grounded = grav.delta <= 0
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
       _groundEnt = _grounded ? grav.entity : null
+
+      // some rotten code here. if we're close to a platform, snap onto it
+      // we also do something similar in MovingPlatform.think
+      Debug.text(grav.delta)
+      if (dy >= 0 && grav.entity is MovingPlatform && grav.delta < 1) {
+         Debug.text("piss")
+         var plat = grav.entity
+         y = plat.y - h
+         plat.think(dt)
+         y = y + check(DIM_VERT, plat.dy).delta
+         x = x + check(DIM_HORIZ, plat.dx).delta
+         _grounded = true
+      }
 
       // let players jump a few frames early but don't let them hold the button down
       _jumpHeldFrames = jumpPress ? _jumpHeldFrames + 1 : 0
@@ -539,7 +624,7 @@ class Player is Entity {
       // update camera
       world.cam.window(x, y, 20)
 
-      // Debug.text("grnd", grav.entity)
+      //Debug.text("grnd", _groundEnt)
       // Debug.text("entx", chkx.entity)
       // Debug.text("enty", chky.entity)
       // Debug.text("x", x)
@@ -668,8 +753,18 @@ class World {
    totalCoins=(c) { _totalCoins = c }
    drawHud { _drawHud }
    drawHud=(b) { _drawHud = b }
+   player { _player }
 
    construct new(i) {
+      _getTile = Fn.new { |x, y|
+         if (x < _level.x || x >= _level.x + _level.w) {
+            return 1
+         }
+
+         return Tic.mget(x,y)
+      }
+      _tileCollider = TileCollider.new(_getTile, 8, 8)
+
       _entities = []
       _coins = 0
       _totalCoins = 0
@@ -684,6 +779,7 @@ class World {
       _levelNum = i
       _cam = Camera.new(8, 8, 240, 136)
       _cam.constrain(_level.x*8, _level.y*8, _level.w*8, _level.h*8)
+      
 
       var entmappings = {
          255: Player,
@@ -701,9 +797,11 @@ class World {
             var e = entmappings[i]
             if (e != null) {
                var ent = e.new(this, i, x*8, y*8)
-               _entities.add(ent)
                if (ent is Player) {
+                  _entities.insert(0, ent)
                    _player = ent
+               } else {
+                  _entities.add(ent)
                }
             }
 
@@ -716,20 +814,6 @@ class World {
          }
          return i
       }
-
-      _getTile = Fn.new { |x, y|
-         if (x < _level.x || x >= _level.x + _level.w) {
-            return 1
-         }
-         
-         var t = Tic.mget(x,y)
-         t = t >= 240 ? 0 : t
-
-         return t
-      }
-
-      _tileCollider = TileCollider.new(_getTile, 8, 8)
-
    }
 
    update(dt) {
