@@ -265,6 +265,10 @@ class Entity {
       var dir = dim == DIM_HORIZ ? (d > 0 ? DIR_RIGHT : DIR_LEFT) : (d > 0 ? DIR_TOP : DIR_BOTTOM)
       d = _world.tileCollider.query(_x, _y, _w, _h, dim, d, resolve)
 
+      if (d == 0) {
+         return member.update(d, null, dir)
+      }
+
       var collideEnt = null
 
       for (ent in _world.entities) {
@@ -300,12 +304,14 @@ class Entity {
 }
 
 class MovingPlatform is Entity {
+   resolve { _resolve }
+    
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 24, 0)
       _dist = 0
       _d = 0
 
-      _resolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
+      _targetResolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
          if (tx == _ignoreX && ty == _ignoreY) {
             return false
          }
@@ -316,6 +322,8 @@ class MovingPlatform is Entity {
 
          return false
       }
+
+      _resolve = Fn.new { |side, tile, tx, ty, ldx, ldy| false }
 
       setDirection(ti)
       setNextPoint()
@@ -347,7 +355,7 @@ class MovingPlatform is Entity {
       var t = Tic.mget(_ignoreX, _ignoreY)
       setDirection(t)
 
-      _dist = world.tileCollider.query(x, y, 1, 1, _dim, _d*2048, _resolve)
+      _dist = world.tileCollider.query(x, y, 1, 1, _dim, _d*2048, _targetResolve)
 
       if (_dist.abs == 2048) {
          _d = 0
@@ -369,11 +377,22 @@ class MovingPlatform is Entity {
       dy = (_dim == DIM_VERT ? _d : 0)
       _dist = _dist - _d.abs
 
+      var chkx = check(DIM_HORIZ, dx)
+      var chky = check(DIM_VERT, dy)
+
+      if (chky.entity is Player) {
+         Debug.text("player", chky.entity.groundEnt)
+         if (chky.entity.groundEnt != this) {
+            chky.entity.groundEnt = this
+            chky.entity.y = y + dy - chky.entity.h
+            Debug.text("attach")
+         }
+      }
       // more rotten code: if the player's step misses us but we would hit them, snap them onto the surface
       // could probably improve this using collision code
-      if (dy < 0 && world.player.y + world.player.h <= y && world.player.y + world.player.h > y + dy) {
-         world.player.y = y + dy - world.player.h
-      }
+      // if (dy < 0 && world.player.y + world.player.h <= y && world.player.y + world.player.h > y + dy) {
+      //    world.player.y = y + dy - world.player.h
+      // }
 
       x = x + dx
       y = y + dy
@@ -456,6 +475,7 @@ class Player is Entity {
    pMeter { _pMeter }
    pMeterCapacity { _pMeterCapacity }
    groundEnt { _groundEnt }
+   groundEnt=(ent) { _groundEnt = ent }
    
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy - 4, 7, 12)
@@ -514,24 +534,31 @@ class Player is Entity {
       var jumpPress = _disableControls ? false : Tic.btn(4)
       var speed = 0
 
-      // track if on the ground this frame, and track frames since leaving platform for late jump presses
+      // track if on the ground this frame
+      _grounded = false
       var grav = check(DIM_VERT, 1)
-      _grounded = grav.delta <= 0
-      _fallingFrames = _grounded ? 0 : _fallingFrames + 1
-      _groundEnt = _grounded ? grav.entity : null
+
+      if (grav.delta < 1) {
+         y = y + grav.delta
+         _grounded = true
+         _groundEnt = grav.entity
+      }
 
       // some rotten code here. if we're close to a platform, snap onto it
       // we also do something similar in MovingPlatform.think
-      Debug.text(grav.delta)
-      if (dy >= 0 && grav.entity is MovingPlatform && grav.delta < 1) {
-         Debug.text("piss")
+      Debug.text("gravd", grav.delta)
+      if (grav.entity is MovingPlatform && grav.delta < 1) {
          var plat = grav.entity
-         y = plat.y - h
          plat.think(dt)
+         Debug.text("y+h", y+h)
+         Debug.text("platy", plat.y)
          y = y + check(DIM_VERT, plat.dy).delta
          x = x + check(DIM_HORIZ, plat.dx).delta
          _grounded = true
       }
+
+      // track frames since leaving platform for late jump presses
+      _fallingFrames = _grounded ? 0 : _fallingFrames + 1
 
       // let players jump a few frames early but don't let them hold the button down
       _jumpHeldFrames = jumpPress ? _jumpHeldFrames + 1 : 0
@@ -616,6 +643,8 @@ class Player is Entity {
          // if we're falling down, we've hit the ground
          if (dy > 0) {
             _grounded = true
+            _groundEnt = chky.entity
+            Debug.text("chky", _groundEnt)
          }
          // either dir, nullify y movement
          dy = 0
@@ -623,6 +652,8 @@ class Player is Entity {
 
       // update camera
       world.cam.window(x, y, 20)
+
+      Debug.text("y+h", y+h)
 
       //Debug.text("grnd", _groundEnt)
       // Debug.text("entx", chkx.entity)
