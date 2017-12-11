@@ -3,9 +3,6 @@
 // desc:   short description
 // script: wren
 
-// FIXME: platforms still all messed up. perhaps i need to not count collisions in check if they started in a colliding state
-// probably should make a proper pool of collisioninfo objects
-
 var DIM_HORIZ = 1
 var DIM_VERT = 2
 
@@ -316,10 +313,13 @@ class MovingPlatform is Entity {
     
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 24, 0)
-      _dist = 0
-      _d = 0
+      _dist = 0 // how far before we reach our target
+      _d = 0 // speed
+      _dim = 0 // what axis we're moving on
 
+      // passed into tilecollider to find the next turn 
       _targetResolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
+         // don't collide with our current turn tile
          if (tx == _ignoreX && ty == _ignoreY) {
             return false
          }
@@ -331,12 +331,15 @@ class MovingPlatform is Entity {
          return false
       }
 
+      // never collide with any tile during movement
       _resolve = Fn.new { |side, tile, tx, ty, ldx, ldy| false }
 
+      // set initial direction based on spawn and then the first destination
       setDirection(ti)
       setNextPoint()
    }
 
+   // moving platforms work like one way. only collide if you're falling through from the top
    canCollide(other, side, d) {
       //Debug.text("ret", "%(side) == %(DIR_TOP) && %(other.y)+%(other.h) <= %(y) && %(other.y)+%(other.h)+%(other.dy) > %(y)")
       return side == DIR_TOP && other.y+other.h <= y && other.y+other.h+d > y
@@ -344,6 +347,7 @@ class MovingPlatform is Entity {
 
    setDirection(ti) {
       ti = ti - 245
+      // spawns also act as turns.
       if (ti > 3) {
          ti = ti - 4
       }
@@ -353,38 +357,48 @@ class MovingPlatform is Entity {
    }
 
    setNextPoint() {
+      // if we've still got time to go, or we couldn't find a valid target
       if (_d == 0 || _dim == 0 || _dist > 0) {
          return
       }
 
+      // we need a new destination. don't consider the one we're on top of now
       _ignoreX = x / 8
       _ignoreY = y / 8
 
+      // but we do need to know which way we're about to go!
       var t = Tic.mget(_ignoreX, _ignoreY)
       setDirection(t)
 
+      // go a long way out to find how far our next target is
       _dist = world.tileCollider.query(x, y, 1, 1, _dim, _d*2048, _targetResolve)
 
-      if (_dist.abs == 2048) {
+      // if we don't have a destination, just freeze it in place
+      if (_dist.abs == _d*2048) {
+         _dim = 0
          _d = 0
          return
       }
 
+      // offset for size of platform
       _dist = _dist.abs + (_d > 0 ? 1 : 8)
    }
 
    think(dt) {
+      // don't move twice in a frame in case a player called us
       if (_movedTime == world.time) {
          return
       }
       _movedTime = world.time
 
+      // figure out if we need a new destination
       setNextPoint()
 
+      // calculate our movement vector
       dx = (_dim == DIM_HORIZ ? _d : 0)
       dy = (_dim == DIM_VERT ? _d : 0)
-      _dist = _dist - _d.abs
 
+      // this is only used to detect if we run into a player. we always move our speed every frame
       var chkx = check(DIM_HORIZ, dx)
       var chky = check(DIM_VERT, dy)
 
@@ -397,6 +411,9 @@ class MovingPlatform is Entity {
 
       x = x + dx
       y = y + dy
+
+      // subtract our distance remaining
+      _dist = _dist - _d.abs
 
       // Debug.text("p", "%(x),%(y) %(_dist)s")
    }
@@ -538,6 +555,7 @@ class Player is Entity {
       // track if on the ground this frame
       var grav = check(DIM_VERT, 1)
 
+      // snap to the ground if we're near it (needed for sticking to falling platforms)
       if (dy >= 0 && grav.delta < 1) {
          // if (grav.delta > 0) { Debug.text("snap") }
          y = y + grav.delta
@@ -548,15 +566,13 @@ class Player is Entity {
          _groundEnt = null
       }
 
-      // some rotten code here. if we're close to a platform, snap onto it
-      // also something similar in MovingPlatform.think so the moving plat will catch us
+      // if we're on a platform, move the platform first
       if (_groundEnt is MovingPlatform) {
-         var plat = grav.entity
-         plat.think(dt)
+         _groundEnt.think(dt)
          // Debug.text("y+h", y+h)
-         // Debug.text("platy", plat.y)
-         y = y + check(DIM_VERT, plat.dy).delta
-         x = x + check(DIM_HORIZ, plat.dx).delta
+         // Debug.text("platy", _groundEnt.y)
+         y = y + check(DIM_VERT, _groundEnt.dy).delta
+         x = x + check(DIM_HORIZ, _groundEnt.dx).delta
          // Debug.text("y+h", y+h)
       }
 
