@@ -3,6 +3,9 @@
 // desc:   short description
 // script: wren
 
+// FIXME: platforms still all messed up. perhaps i need to not count collisions in check if they started in a colliding state
+// probably should make a proper pool of collisioninfo objects
+
 var DIM_HORIZ = 1
 var DIM_VERT = 2
 
@@ -380,24 +383,17 @@ class MovingPlatform is Entity {
       var chkx = check(DIM_HORIZ, dx)
       var chky = check(DIM_VERT, dy)
 
-      if (chky.entity is Player) {
-         Debug.text("player", chky.entity.groundEnt)
-         if (chky.entity.groundEnt != this) {
-            chky.entity.groundEnt = this
-            chky.entity.y = y + dy - chky.entity.h
-            Debug.text("attach")
-         }
+      // if the platform is going to lift the player up, attach them to this and lift them
+      if (chky.entity is Player && chky.entity.groundEnt != this) {
+         chky.entity.groundEnt = this
+         chky.entity.y = chky.entity.y + chky.entity.check(DIM_VERT, dy).delta
+         Debug.text("attach")
       }
-      // more rotten code: if the player's step misses us but we would hit them, snap them onto the surface
-      // could probably improve this using collision code
-      // if (dy < 0 && world.player.y + world.player.h <= y && world.player.y + world.player.h > y + dy) {
-      //    world.player.y = y + dy - world.player.h
-      // }
 
       x = x + dx
       y = y + dy
 
-      //Debug.text("p", "%(x),%(y) %(_dist)s")
+      // Debug.text("p", "%(x),%(y) %(_dist)s")
    }
 
    draw(t) {
@@ -535,23 +531,24 @@ class Player is Entity {
       var speed = 0
 
       // track if on the ground this frame
-      _grounded = false
       var grav = check(DIM_VERT, 1)
 
       if (grav.delta < 1) {
          y = y + grav.delta
          _grounded = true
          _groundEnt = grav.entity
+      } else {
+         _grounded = false
+         _groundEnt = null
       }
 
       // some rotten code here. if we're close to a platform, snap onto it
-      // we also do something similar in MovingPlatform.think
-      Debug.text("gravd", grav.delta)
+      // also something similar in MovingPlatform.think so the moving plat will catch us
       if (grav.entity is MovingPlatform && grav.delta < 1) {
          var plat = grav.entity
          plat.think(dt)
-         Debug.text("y+h", y+h)
-         Debug.text("platy", plat.y)
+         // Debug.text("y+h", y+h)
+         // Debug.text("platy", plat.y)
          y = y + check(DIM_VERT, plat.dy).delta
          x = x + check(DIM_HORIZ, plat.dx).delta
          _grounded = true
@@ -644,7 +641,11 @@ class Player is Entity {
          if (dy > 0) {
             _grounded = true
             _groundEnt = chky.entity
-            Debug.text("chky", _groundEnt)
+            if (chky.entity is MovingPlatform) {
+               chky.entity.think(dt)
+               y = chky.entity.y - h
+               //Debug.text("chky", "%(_groundEnt != null) %(_groundEnt.y)")
+            }
          }
          // either dir, nullify y movement
          dy = 0
@@ -653,9 +654,9 @@ class Player is Entity {
       // update camera
       world.cam.window(x, y, 20)
 
-      Debug.text("y+h", y+h)
+      // Debug.text("y+h", y+h)
 
-      //Debug.text("grnd", _groundEnt)
+      // Debug.text("grnd", _groundEnt)
       // Debug.text("entx", chkx.entity)
       // Debug.text("enty", chky.entity)
       // Debug.text("x", x)
