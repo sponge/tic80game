@@ -558,8 +558,6 @@ class Player is Entity {
          y = y + check(DIM_VERT, plat.dy).delta
          x = x + check(DIM_HORIZ, plat.dx).delta
          // Debug.text("y+h", y+h)
-
-         _grounded = true
       }
 
       // track frames since leaving platform for late jump presses
@@ -645,16 +643,6 @@ class Player is Entity {
       }
 
       if (chky.delta != dy) {
-         // if we're falling down, we've hit the ground
-         if (dy > 0) {
-            _grounded = true
-            _groundEnt = chky.entity
-            if (chky.entity is MovingPlatform) {
-               chky.entity.think(dt)
-               y = chky.entity.y - h
-               Debug.text("chky", "%(_groundEnt != null) %(_groundEnt.y)")
-            }
-         }
          // either dir, nullify y movement
          dy = 0
       }
