@@ -19,6 +19,7 @@ class Math {
    static max(a, b) { a > b ? a : b }
    static min(a, b) { a < b ? a : b }
    static clamp(min, val, max) { val > max ? max : val < min ? min : val }
+   static rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) { x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2 }
 }
 
 class Timer {
@@ -233,6 +234,10 @@ class Entity {
       _xCollide = Collision.new(0, null, 0)
       _yCollide = Collision.new(0, null, 0)
    }
+   
+   intersects(other) {
+      return Math.rectIntersect(x, y, w, h, other.x, other.y, other.w, other.h)
+   }
 
    // modified SAT, always resolves based on the axis passed in, not the nearest
    // always checks one dimension per call
@@ -384,10 +389,10 @@ class MovingPlatform is Entity {
       var chky = check(DIM_VERT, dy)
 
       // if the platform is going to lift the player up, attach them to this and lift them
-      if (chky.entity is Player && chky.entity.groundEnt != this) {
+      if (chky.entity is Player && chky.entity.groundEnt != this && intersects(chky.entity) == false) {
          chky.entity.groundEnt = this
          chky.entity.y = chky.entity.y + chky.entity.check(DIM_VERT, dy).delta
-         Debug.text("attach")
+         // Debug.text("attach")
       }
 
       x = x + dx
@@ -533,7 +538,8 @@ class Player is Entity {
       // track if on the ground this frame
       var grav = check(DIM_VERT, 1)
 
-      if (grav.delta < 1) {
+      if (dy >= 0 && grav.delta < 1) {
+         // if (grav.delta > 0) { Debug.text("snap") }
          y = y + grav.delta
          _grounded = true
          _groundEnt = grav.entity
@@ -544,13 +550,15 @@ class Player is Entity {
 
       // some rotten code here. if we're close to a platform, snap onto it
       // also something similar in MovingPlatform.think so the moving plat will catch us
-      if (grav.entity is MovingPlatform && grav.delta < 1) {
+      if (_groundEnt is MovingPlatform) {
          var plat = grav.entity
          plat.think(dt)
          // Debug.text("y+h", y+h)
          // Debug.text("platy", plat.y)
          y = y + check(DIM_VERT, plat.dy).delta
          x = x + check(DIM_HORIZ, plat.dx).delta
+         // Debug.text("y+h", y+h)
+
          _grounded = true
       }
 
@@ -644,7 +652,7 @@ class Player is Entity {
             if (chky.entity is MovingPlatform) {
                chky.entity.think(dt)
                y = chky.entity.y - h
-               //Debug.text("chky", "%(_groundEnt != null) %(_groundEnt.y)")
+               Debug.text("chky", "%(_groundEnt != null) %(_groundEnt.y)")
             }
          }
          // either dir, nullify y movement
