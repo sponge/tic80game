@@ -182,6 +182,12 @@ class Collision {
       update(delta, entity, side)
    }
 
+   clear() {
+      _delta = 0
+      _entity = null
+      _side = 0
+   }
+
    update(delta, entity, side) {
       _delta = delta
       _entity = entity
@@ -308,6 +314,53 @@ class Entity {
    draw(t){}
 }
 
+class FallingPlatform is Entity {
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy, 24, 4)
+
+      _fallTime = 0
+      _fallSpeed = 1
+   }
+
+   canCollide(other, side, d) {
+      return side == DIR_TOP && other.y+other.h <= y && other.y+other.h+d > y
+   }
+
+   touch(other, side) {
+      if (other is Player == false) {
+         return
+      }
+
+      if (_fallTime == 0) {
+         _fallTime = other.world.time + 60
+         dy = _fallSpeed
+      }
+   }
+
+   think(dt) {
+      if (_movedTime == world.time) {
+         return
+      }
+      _movedTime = world.time
+
+      if ( y > (world.level.y + world.level.h + 2) * 8) {
+         active = false
+         return
+      }
+
+      if (_fallTime > 0 && world.time > _fallTime) {
+         y = y + dy
+      }
+
+   }
+
+   draw(t) {
+      Tic.spr(244, cx, cy, 0)
+      Tic.spr(244, cx+8, cy, 0)
+      Tic.spr(244, cx+16, cy, 0)
+   }
+}
+
 class MovingPlatform is Entity {
    resolve { _resolve }
     
@@ -419,7 +472,7 @@ class MovingPlatform is Entity {
    }
 
    draw(t) {
-      Tic.rect(cx, cy, w, 4, 4)
+      Tic.spr(272, cx, cy, 0, 1, 0, 0, 3, 1)
    }
 }
 
@@ -548,6 +601,9 @@ class Player is Entity {
    }
 
    think(dt) {
+      xCollide.clear()
+      yCollide.clear()
+
       var dir = _disableControls ? 0 : Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
       var jumpPress = _disableControls ? false : Tic.btn(4)
       var speed = 0
@@ -561,13 +617,15 @@ class Player is Entity {
          y = y + grav.delta
          _grounded = true
          _groundEnt = grav.entity
+         // trigger touch on things you're standing on, since gravity won't trigger it
+         triggerTouch()
       } else {
          _grounded = false
          _groundEnt = null
       }
 
       // if we're on a platform, move the platform first
-      if (_groundEnt is MovingPlatform) {
+      if (_groundEnt is MovingPlatform || _groundEnt is FallingPlatform) {
          _groundEnt.think(dt)
          // Debug.text("y+h", y+h)
          // Debug.text("platy", _groundEnt.y)
@@ -790,6 +848,7 @@ class World {
    tileCollider { _tileCollider }
    cam { _cam }
    entities { _entities }
+   level { _level }
    levelNum { _levelNum }
    coins { _coins }
    coins=(c) { _coins = c }
@@ -833,6 +892,7 @@ class World {
          247: MovingPlatform,
          246: MovingPlatform,
          245: MovingPlatform,
+         244: FallingPlatform
       }
 
       for (y in _level.y.._level.y+_level.h) {
@@ -865,7 +925,7 @@ class World {
       Debug.text("time", time)
 
       for (ent in _entities) {
-         ent.think(_time)
+         ent.think(dt)
       }
 
       for (i in _entities.count-1..0) {
