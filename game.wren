@@ -332,7 +332,7 @@ class FallingPlatform is Entity {
       }
 
       if (_fallTime == 0) {
-         _fallTime = other.world.time + 60
+         _fallTime = other.world.time + 10
          dy = _fallSpeed
       }
    }
