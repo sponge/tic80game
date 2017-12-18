@@ -172,23 +172,62 @@ class TileCollider {
    }
 }
 
+class CollisionPool {
+   static init() {
+      __pool = []
+      __curr = 0
+      __max = 16
+
+      for (i in 1..__max) {
+         __pool.add(Collision.new(0, null, 0))
+      }
+   }
+   
+   static get() {
+      var res = __pool[__curr]
+      res.clear()
+      __curr = (__curr + 1) % __max
+      return res
+   }
+}
+
+class TriggerInfo {
+   delta { _delta }
+   entity { _entity }
+   construct new(delta, entity) {
+      _delta = delta
+      _entity = entity
+   }
+}
+
 class Collision {
    delta { _delta }
    entity { _entity }
    entity=(e) { _entity = e }
    side { _side }
 
+   triggers { _trigger }
+
    construct new(delta, entity, side) {
-      update(delta, entity, side)
+      set(delta, entity, side)
    }
 
    clear() {
       _delta = 0
       _entity = null
       _side = 0
+      _triggers = []
    }
 
-   update(delta, entity, side) {
+   addTrigger(delta, entity) {
+
+   }
+
+   filterTriggers(delta) {
+
+   }
+
+   set(delta, entity, side) {
       _delta = delta
       _entity = entity
       _side = side
@@ -216,14 +255,14 @@ class Entity {
    dy=(dy) { _dy = dy }
    active { _active }
    active=(a) { _active = a }
+   trigger { _trigger }
+   trigger=(b) { _trigger = b }
 
    world { _world }
-
-   xCollide { _xCollide }
-   yCollide { _yCollide }
    
    construct new(world, ti, x, y, w, h) {
       _world = world
+      _trigger = false
       _active = true
       _x = x
       _y = y
@@ -233,9 +272,6 @@ class Entity {
       _dy = 0
       _cx = 0
       _cy = 0
-
-      _xCollide = Collision.new(0, null, 0)
-      _yCollide = Collision.new(0, null, 0)
    }
    
    intersects(other) {
@@ -272,12 +308,13 @@ class Entity {
    }
 
    check(dim, d) {
-      var member = dim == DIM_HORIZ ? _xCollide : _yCollide
       var dir = dim == DIM_HORIZ ? (d > 0 ? DIR_RIGHT : DIR_LEFT) : (d > 0 ? DIR_TOP : DIR_BOTTOM)
       d = _world.tileCollider.query(_x, _y, _w, _h, dim, d, resolve)
 
+      var colInfo = CollisionPool.get()
+
       if (d == 0) {
-         return member.update(d, null, dir)
+         return colInfo.set(d, null, dir)
       }
 
       var collideEnt = null
@@ -289,22 +326,18 @@ class Entity {
                collideEnt = ent
 
                if (ent.canCollide(this, dir, d)) {
-                  d = d > 0 ? Math.min(d, tmp) : Math.max(d, tmp)
+                  d = tmp.abs < d.abs ? tmp : d
                }
             }
          }
       }
 
-      return member.update(d, collideEnt, dir)
+      return colInfo.set(d, collideEnt, dir)
    }
 
-   triggerTouch() {
-      if (_xCollide.entity != null) {
-         _xCollide.entity.touch(this, _xCollide.side == DIR_LEFT ? DIR_RIGHT : DIR_LEFT)
-      }
-
-      if (_yCollide.entity != null) {
-         _yCollide.entity.touch(this, _yCollide.side == DIR_TOP ? DIR_BOTTOM : DIR_TOP)
+   triggerTouch(collision) {
+      if (collision.entity != null) {
+         collision.entity.touch(this, collision.side == DIR_LEFT ? DIR_RIGHT : DIR_LEFT)
       }
    }
 
@@ -601,9 +634,6 @@ class Player is Entity {
    }
 
    think(dt) {
-      xCollide.clear()
-      yCollide.clear()
-
       var dir = _disableControls ? 0 : Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
       var jumpPress = _disableControls ? false : Tic.btn(4)
       var speed = 0
@@ -618,7 +648,7 @@ class Player is Entity {
          _grounded = true
          _groundEnt = grav.entity
          // trigger touch on things you're standing on, since gravity won't trigger it
-         triggerTouch()
+         triggerTouch(grav)
       } else {
          _grounded = false
          _groundEnt = null
@@ -709,7 +739,8 @@ class Player is Entity {
          chky.entity = null
       }
 
-      triggerTouch()
+      triggerTouch(chkx)
+      triggerTouch(chky)
 
       // if we hit either direction in x, stop momentum
       if (chkx.delta != dx) {
@@ -995,6 +1026,7 @@ class Scene {
 
 class Game is Engine { 
    construct new(){
+      CollisionPool.init()
       Debug.init()
       Timer.init()
       _slomo = false
