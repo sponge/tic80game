@@ -205,8 +205,7 @@ class Collision {
    entity { _entity }
    entity=(e) { _entity = e }
    side { _side }
-
-   triggers { _trigger }
+   triggers { _triggers }
 
    construct new(delta, entity, side) {
       set(delta, entity, side)
@@ -220,11 +219,19 @@ class Collision {
    }
 
    addTrigger(delta, entity) {
-
+      _triggers.add(TriggerInfo.new(delta, entity))
    }
 
    filterTriggers(delta) {
+      if (_triggers.count == 0) {
+         return
+      }
 
+      for (i in _triggers.count-1..0) {
+         if (delta.abs < _triggers[i].delta.abs) {
+            _triggers.removeAt(i)
+         }
+      }
    }
 
    set(delta, entity, side) {
@@ -255,8 +262,6 @@ class Entity {
    dy=(dy) { _dy = dy }
    active { _active }
    active=(a) { _active = a }
-   trigger { _trigger }
-   trigger=(b) { _trigger = b }
 
    world { _world }
    
@@ -320,17 +325,23 @@ class Entity {
       var collideEnt = null
 
       for (ent in _world.entities) {
-         if (ent != this && (ent.w > 0 || ent.h > 0)) {
+         if (ent != this && ent.active && (ent.w > 0 || ent.h > 0)) {
             var tmp = this.collide(ent, dim, d)
             if (tmp != d) {
-               collideEnt = ent
-
                if (ent.canCollide(this, dir, d)) {
-                  d = tmp.abs < d.abs ? tmp : d
+                  if (ent.trigger) {
+                     colInfo.addTrigger(d, ent)
+                  } else {
+                     collideEnt = ent
+                     d = tmp.abs < d.abs ? tmp : d
+                  }
+
                }
             }
          }
       }
+
+      colInfo.filterTriggers(d)
 
       return colInfo.set(d, collideEnt, dir)
    }
@@ -339,9 +350,14 @@ class Entity {
       if (collision.entity != null) {
          collision.entity.touch(this, collision.side == DIR_LEFT ? DIR_RIGHT : DIR_LEFT)
       }
+
+      for (trigger in collision.triggers) {
+         trigger.entity.touch(this, collision.side == DIR_LEFT ? DIR_RIGHT : DIR_LEFT)
+      }
    }
 
    canCollide(other, side, d){ true }
+   trigger { false }
    touch(other, side){}
    think(dt){}
    draw(t){}
@@ -515,13 +531,10 @@ class Coin is Entity {
       world.totalCoins = world.totalCoins + 1
    }
 
-   canCollide(other, side, d) { false }
+   canCollide(other, side, d) { other is Player == true }
+   trigger { true }
 
    touch(other, side) {
-      if (other is Player == false) {
-         return
-      }
-
       active = false
       world.coins = world.coins + 1
    }
@@ -536,17 +549,14 @@ class LevelExit is Entity {
       super(world, ti, ox, oy, 8, 8)
    }
 
-   canCollide(other, side, d){ false }
+   canCollide(other, side, d) { other is Player == true }
+   trigger { true }
 
    draw(t) {
       Tic.spr(254, cx, cy)
    }
 
    touch(other, side) {
-      if (other is Player == false) {
-         return
-      }
-
       active = false
       other.disableControls = true
       world.entities.add(ExitBanner.new(world))
@@ -731,15 +741,10 @@ class Player is Entity {
       // move x first, then move y. don't do it at the same time, else buggy behavior
       var chkx = check(DIM_HORIZ, dx)
       x = x + chkx.delta
+      triggerTouch(chkx)
+
       var chky = check(DIM_VERT, dy)
       y = y + chky.delta
-
-      // don't trigger the same entity twice
-      if (chkx.entity == chky.entity) {
-         chky.entity = null
-      }
-
-      triggerTouch(chkx)
       triggerTouch(chky)
 
       // if we hit either direction in x, stop momentum
@@ -754,8 +759,6 @@ class Player is Entity {
 
       // update camera
       world.cam.window(x, y, 20)
-
-      // Debug.text("y+h", y+h)
 
       // Debug.text("grnd", _groundEnt)
       // Debug.text("entx", chkx.entity)
@@ -956,7 +959,9 @@ class World {
       Debug.text("time", time)
 
       for (ent in _entities) {
-         ent.think(dt)
+         if (ent.active) {
+            ent.think(dt)
+         }
       }
 
       for (i in _entities.count-1..0) {
@@ -970,8 +975,10 @@ class World {
       Tic.map(_cam.tx, _cam.ty, _cam.tw, _cam.th, 0 - _cam.x % 8, 0 - _cam.y % 8, -1, 1, _remap)
 
       for (ent in _entities) {
-         cam.entToCamera(ent)
-         ent.draw(t)
+         if (ent.active) {
+            cam.entToCamera(ent)
+            ent.draw(t)
+         }
       }
 
       if (_drawHud && _player != null) {
@@ -1007,12 +1014,14 @@ class Scene {
    static intro(num) {
       Timer.clear()
       __world = Intro.new(num)
+      System.gc()
    }
 
    static level(num) {
       Timer.clear()
       num = num % 2
       __world = World.new(num)
+      System.gc()
    }
 
    static update(i) {
