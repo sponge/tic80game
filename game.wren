@@ -963,7 +963,7 @@ class World {
 
    update(dt) {
       _time = _time + dt
-      Debug.text("time", time)
+      //Debug.text("time", time)
 
       for (ent in _entities) {
          if (ent.active) {
