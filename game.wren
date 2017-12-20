@@ -760,6 +760,13 @@ class Player is Entity {
       // update camera
       world.cam.window(x, y, 20)
 
+      if ( y > (world.level.y + world.level.h) * 8) {
+         active = false
+         Timer.runLater(60, Fn.new {
+            Scene.intro(world.levelNum)
+         })
+      }
+
       // Debug.text("grnd", _groundEnt)
       // Debug.text("entx", chkx.entity)
       // Debug.text("enty", chky.entity)
