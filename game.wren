@@ -363,6 +363,70 @@ class Entity {
    draw(t){}
 }
 
+class Spring is Entity {
+
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy, 8, 8)
+      _activateTime = -1
+      _thinkTime = 0
+      _baseY = oy
+   }
+
+   activated { _activateTime == -1 ? 4 : 4 - ((world.time - _activateTime) / 4).floor }
+
+   canCollide(other, side, d) {
+      return side == DIR_TOP && other.y+other.h <= y && other.y+other.h+d > y
+   }
+
+   touch(other, side) {
+      if (other is Player == false) {
+         return
+      }
+
+      if (_activateTime == -1) {
+         _activateTime = world.time
+      }
+   }
+
+   reset() {
+      y = _baseY
+      dy = 0
+      _activateTime = -1
+   }
+
+   tryActivate() {
+      if (activated == 0) {
+         reset()
+         return -3.75
+      } else {
+         return 0
+      }
+   }
+
+   think(dt) {
+      if (_thinkTime == world.time) {
+         return
+      }
+      _thinkTime = world.time
+
+      if (_activateTime == -1) {
+         return
+      }
+
+      if (activated < 0) {
+         reset()
+      } else {
+         dy = 1
+         y = _baseY + (4 - activated)
+      }
+   }
+
+   draw(t) {
+      var frm = _activateTime == -1 ? 4 : activated
+      Tic.spr(264 - frm, cx, cy, 0)      
+   }
+}
+
 class FallingPlatform is Entity {
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 24, 4)
@@ -665,10 +729,19 @@ class Player is Entity {
       }
 
       // if we're on a platform, move the platform first
-      if (_groundEnt is MovingPlatform || _groundEnt is FallingPlatform) {
+      if (_groundEnt is MovingPlatform || _groundEnt is FallingPlatform || _groundEnt is Spring) {
          _groundEnt.think(dt)
          // Debug.text("y+h", y+h)
          // Debug.text("platy", _groundEnt.y)
+         if (_groundEnt is Spring) {
+            var amt = _groundEnt.tryActivate()
+            if (amt) {
+               dy = amt
+               _grounded = false
+               _jumpHeld = jumpPress
+            }
+         }
+
          y = y + check(DIM_VERT, _groundEnt.dy).delta
          x = x + check(DIM_HORIZ, _groundEnt.dx).delta
          // Debug.text("y+h", y+h)
@@ -933,7 +1006,8 @@ class World {
          247: MovingPlatform,
          246: MovingPlatform,
          245: MovingPlatform,
-         244: FallingPlatform
+         244: FallingPlatform,
+         243: Spring,
       }
 
       for (y in _level.y.._level.y+_level.h) {
