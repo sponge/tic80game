@@ -734,12 +734,10 @@ class Player is Entity {
          // Debug.text("y+h", y+h)
          // Debug.text("platy", _groundEnt.y)
          if (_groundEnt is Spring) {
-            var amt = _groundEnt.tryActivate()
-            if (amt) {
-               dy = amt
-               _grounded = false
-               _jumpHeld = jumpPress
-            }
+            // this will kill the ability to jump too, even if the spring isn't ready to activate yet
+            dy = _groundEnt.tryActivate()
+            _grounded = false
+            _jumpHeld = jumpPress
          }
 
          y = y + check(DIM_VERT, _groundEnt.dy).delta
