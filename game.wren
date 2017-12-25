@@ -364,7 +364,6 @@ class Entity {
 }
 
 class Spring is Entity {
-
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 8, 8)
       _activateTime = -1
@@ -424,6 +423,26 @@ class Spring is Entity {
    draw(t) {
       var frm = _activateTime == -1 ? 4 : activated
       Tic.spr(264 - frm, cx, cy, 0)      
+   }
+}
+
+class Spike is Entity {
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy, 8, 8)
+   }
+
+   canCollide(other, side, d) { true }
+
+   touch(other, side) {
+      if (other is Player == false) {
+         return
+      }
+
+      other.hurt(this, 1)
+   }
+
+   draw(t) {
+      Tic.spr(242, cx, cy, 0)      
    }
 }
 
@@ -654,6 +673,7 @@ class Player is Entity {
    pMeterCapacity { _pMeterCapacity }
    groundEnt { _groundEnt }
    groundEnt=(ent) { _groundEnt = ent }
+   health { _health }
    
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy - 4, 7, 12)
@@ -683,6 +703,8 @@ class Player is Entity {
       _jumpHeldFrames = 0
       _groundEnt = null
       _disableControls = false
+      _health = 3
+      _invulnTime = 0
 
       // values from https://cdn.discordapp.com/attachments/191015116655951872/332350193540268033/smw_physics.png
       _friction = 0.03125
@@ -705,6 +727,26 @@ class Player is Entity {
          0.25: 2.46875,
             0: 2.40625
       }
+   }
+
+   die() {
+      active = false
+      Timer.runLater(60, Fn.new {
+         Scene.intro(world.levelNum)
+      })
+   }
+
+   hurt(other, amount) {
+      if (world.time < _invulnTime) {
+         return
+      }
+
+      _health = _health - amount
+      _invulnTime = world.time + 120
+
+      if (_health <= 0) {
+         die()
+      }   
    }
 
    think(dt) {
@@ -832,10 +874,8 @@ class Player is Entity {
       world.cam.window(x, y, 20)
 
       if ( y > (world.level.y + world.level.h) * 8) {
-         active = false
-         Timer.runLater(60, Fn.new {
-            Scene.intro(world.levelNum)
-         })
+         _health = 0
+         die()
       }
 
       // Debug.text("grnd", _groundEnt)
@@ -852,7 +892,8 @@ class Player is Entity {
    }
 
    draw(t) {
-      Tic.rect(cx, cy, w, h, 14)
+      var color = world.time < _invulnTime ? 15 : 14
+      Tic.rect(cx, cy, w, h, color)
    }
 }
 
@@ -1006,6 +1047,7 @@ class World {
          245: MovingPlatform,
          244: FallingPlatform,
          243: Spring,
+         242: Spike,
       }
 
       for (y in _level.y.._level.y+_level.h) {
@@ -1066,6 +1108,12 @@ class World {
          Tic.spr(256, 110, 1, 0)  
          Tic.print("%(_coins)/%(_totalCoins)", 120, 3, 15, true)
          Tic.print("P>>> %(pct)\%", 4, 3, 15, true)
+
+         if (_player.health > 0) {
+            for (i in 1.._player.health) {
+               Tic.spr(265, 185+(i*14), 2, 0, 1, 0, 0, 2, 2)
+            }
+         }
       }
    }
 }
