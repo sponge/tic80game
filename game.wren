@@ -426,6 +426,67 @@ class Spring is Entity {
    }
 }
 
+class Cannonball is Entity {
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy, 8, 8)
+      dx = -0.5
+      dy = 0
+   }
+
+   canCollide(other, side, d) { true }
+
+   touch(other, side) {
+      active = false
+   }
+
+   think(dt) {
+      x = x + dx
+      y = y + dy
+   }
+
+   draw(t) {
+      Tic.spr(270, cx, cy, 13)      
+   }
+}
+
+class Cannon is Entity {
+   construct new(world, ti, ox, oy) {
+      super(world, ti, ox, oy, 8, 8)
+      _tile = ti
+
+      ti = ti - 238
+      _dim = ti % 2 == 0 ? DIM_VERT : DIM_HORIZ
+      _d = ti == 0 || ti == 3 ? -0.5 : 0.5
+
+      _fireTime = world.time + 60
+   }
+
+   canCollide(other, side, d) { true }
+
+   think(dt) {
+      if (world.time < _fireTime) {
+         return
+      }
+
+      var dist = (world.player.x - x).abs
+      if (dist <= 16 || dist > 200) {
+         _fireTime = world.time + 60
+         return
+      }
+
+      var ball = Cannonball.new(world, 270, x, y)
+      ball.dx = _dim == DIM_HORIZ ? _d : 0
+      ball.dy = _dim == DIM_VERT ? _d : 0
+      world.entities.add(ball)
+
+      _fireTime = world.time + 300
+   }
+
+   draw(t) {
+      Tic.spr(_tile, cx, cy, 13)      
+   }
+}
+
 class Spike is Entity {
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 8, 8)
@@ -683,7 +744,7 @@ class Player is Entity {
             return false
          }
 
-         if (tile >= 240) {
+         if (tile >= 224) {
             // editor only item
             return false
          }
@@ -1048,6 +1109,10 @@ class World {
          244: FallingPlatform,
          243: Spring,
          242: Spike,
+         241: Cannon,
+         240: Cannon,
+         239: Cannon,
+         238: Cannon,
       }
 
       for (y in _level.y.._level.y+_level.h) {
@@ -1068,7 +1133,7 @@ class World {
       }
 
       _remap = Fn.new { |i, x, y|
-         if (i >= 240) {
+         if (i >= 224) {
             return 0
          }
          return i
