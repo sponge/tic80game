@@ -623,7 +623,7 @@ class Coin is Entity {
    }
 
    draw(t) {
-      Tic.spr(256 + (t / 8 % 4).floor, cx, cy, 0)      
+      Tic.spr(256 + (t / 8 % 4).floor, cx, cy, 0)
    }
 }
 
@@ -636,7 +636,7 @@ class LevelExit is Entity {
    trigger { true }
 
    draw(t) {
-      Tic.spr(254, cx, cy)
+      Tic.spr(268 + (t / 7 % 2).floor, cx, cy, 0)
    }
 
    touch(other, side) {
@@ -688,7 +688,7 @@ class Player is Entity {
             return false
          }
 
-         if (tile == 4) {
+         if (tile >= 4 && tile <= 6) {
             //Debug.text("plat", "%(ty), %(side == DIR_BOTTOM) && %(y+h) <= %(ty*8) && %(y+h+ldy) > %(ty*8)")
             return side == DIR_BOTTOM && y+h <= ty*8 && y+h+ldy > ty*8
          }
@@ -1104,8 +1104,10 @@ class World {
 
       if (_drawHud && _player != null) {
          Tic.rect(0, 0, 240, 12, 1)
-         Tic.spr(256, 100, 1, 0)
-         Tic.print("%(_coins)/%(_totalCoins)", 110, 3, _coins == _totalCoins ? 14 : 15, true)
+         if (_totalCoins > 0) {
+            Tic.spr(256, 100, 1, 0)
+            Tic.print("%(_coins)/%(_totalCoins)", 110, 3, _coins == _totalCoins ? 14 : 15, true)
+         }
          Tic.print("S", 4, 3, 15, true)
 
          for (i in 0..2) {
