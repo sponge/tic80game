@@ -1103,16 +1103,18 @@ class World {
       }
 
       if (_drawHud && _player != null) {
-         var pct = (_player.pMeter / _player.pMeterCapacity * 100).floor
          Tic.rect(0, 0, 240, 12, 1)
-         Tic.spr(256, 110, 1, 0)  
-         Tic.print("%(_coins)/%(_totalCoins)", 120, 3, 15, true)
-         Tic.print("P>>> %(pct)\%", 4, 3, 15, true)
+         Tic.spr(256, 100, 1, 0)
+         Tic.print("%(_coins)/%(_totalCoins)", 110, 3, _coins == _totalCoins ? 14 : 15, true)
+         Tic.print("S", 4, 3, 15, true)
 
-         if (_player.health > 0) {
-            for (i in 1.._player.health) {
-               Tic.spr(265, 185+(i*14), 2, 0, 1, 0, 0, 2, 2)
-            }
+         for (i in 0..2) {
+            Tic.spr(i < _player.health ? 265 : 281, 198+(i*14), 2, 0, 1, 0, 0, 2, 1)
+         }
+
+         var pct = (_player.pMeter / _player.pMeterCapacity * 40 / 8).floor
+         for (i in 0..4) {
+            Tic.spr(i < pct ? 283 : 267, 11 + i * 6, 2, 0)
          }
       }
    }
