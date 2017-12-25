@@ -264,6 +264,7 @@ class Entity {
    active=(a) { _active = a }
 
    world { _world }
+   baseResolve { _baseResolve }
    
    construct new(world, ti, x, y, w, h) {
       _world = world
@@ -277,6 +278,24 @@ class Entity {
       _dy = 0
       _cx = 0
       _cy = 0
+
+      _baseResolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
+         if (tile == 0) {
+            return false
+         }
+
+         if (tile >= 224) {
+            // editor only item
+            return false
+         }
+
+         if (tile >= 4 && tile <= 6) {
+            //Debug.text("plat", "%(ty), %(side == DIR_BOTTOM) && %(y+h) <= %(ty*8) && %(y+h+ldy) > %(ty*8)")
+            return side == DIR_BOTTOM && _y+_h <= ty*8 && _y+_h+ldy > ty*8
+         }
+
+         return true
+      }
    }
    
    intersects(other) {
@@ -348,11 +367,11 @@ class Entity {
 
    triggerTouch(collision) {
       if (collision.entity != null) {
-         collision.entity.touch(this, collision.side == DIR_LEFT ? DIR_RIGHT : DIR_LEFT)
+         collision.entity.touch(this, collision.side)
       }
 
       for (trigger in collision.triggers) {
-         trigger.entity.touch(this, collision.side == DIR_LEFT ? DIR_RIGHT : DIR_LEFT)
+         trigger.entity.touch(this, collision.side)
       }
    }
 
@@ -427,21 +446,50 @@ class Spring is Entity {
 }
 
 class Cannonball is Entity {
+   parent { _parent }
+   parent=(ent) { _parent = ent }
+
+   resolve { baseResolve }
+
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 8, 8)
       dx = -0.5
       dy = 0
+      _parent = null
    }
 
    canCollide(other, side, d) { true }
+   trigger { true }
 
    touch(other, side) {
       active = false
+      if (other is Player && side != DIR_TOP) {
+         other.hurt(this, 1)
+      }
    }
 
    think(dt) {
+      var chkx = check(DIM_HORIZ, dx)
+      if (chkx.entity != null && chkx.entity != _parent) {
+         touch(chkx.entity, chkx.side)
+      }
       x = x + dx
+
+      var chky = check(DIM_VERT, dy)
+      if (chky.entity != null && chky.entity != _parent) {
+         touch(chky.entity, chky.side)
+      }
       y = y + dy
+
+      if ( y > (world.level.y + world.level.h + 2) * 8 || y < world.level.y) {
+         active = false
+         return
+      }
+
+      if ( x > (world.level.x + world.level.w) * 8 || x < world.level.x) {
+         active = false
+         return
+      }
    }
 
    draw(t) {
@@ -475,6 +523,7 @@ class Cannon is Entity {
       }
 
       var ball = Cannonball.new(world, 270, x, y)
+      ball.parent = this
       ball.dx = _dim == DIM_HORIZ ? _d : 0
       ball.dy = _dim == DIM_VERT ? _d : 0
       world.entities.add(ball)
@@ -728,7 +777,7 @@ class ExitBanner is Entity {
 }
 
 class Player is Entity {
-   resolve { _resolve }
+   resolve { baseResolve }
    disableControls=(b) { _disableControls = b }
    pMeter { _pMeter }
    pMeterCapacity { _pMeterCapacity }
@@ -738,24 +787,6 @@ class Player is Entity {
    
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy - 4, 7, 12)
-
-      _resolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
-         if (tile == 0) {
-            return false
-         }
-
-         if (tile >= 224) {
-            // editor only item
-            return false
-         }
-
-         if (tile >= 4 && tile <= 6) {
-            //Debug.text("plat", "%(ty), %(side == DIR_BOTTOM) && %(y+h) <= %(ty*8) && %(y+h+ldy) > %(ty*8)")
-            return side == DIR_BOTTOM && y+h <= ty*8 && y+h+ldy > ty*8
-         }
-
-         return true
-      }
 
       _grounded = true
       _fallingFrames = 0
@@ -1143,6 +1174,7 @@ class World {
    update(dt) {
       _time = _time + dt
       //Debug.text("time", time)
+      //Debug.text("ents", _entities.count)
 
       for (ent in _entities) {
          if (ent.active) {
