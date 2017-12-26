@@ -413,6 +413,9 @@ class Entity {
    draw(t){}
 }
 
+// springs work like moving platforms, and will be called from the player's think early on
+// this would probably be cleaner if i could query to see if any entities are standing on the spring
+// and trigger the bounce on them instead of having the player check.
 class Spring is Entity {
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 8, 8)
@@ -421,12 +424,15 @@ class Spring is Entity {
       _baseY = oy
    }
 
+   // springs dont activate immediately, they activate a few frames later
    activated { _activateTime == -1 ? 4 : 4 - ((world.time - _activateTime) / 4).floor }
 
+   // they work like platforms, only collide from the top going down
    canCollide(other, side, d) {
       return side == DIR_TOP && other.y+other.h <= y && other.y+other.h+d > y
    }
 
+   // start the animation
    touch(other, side) {
       if (other is Player == false) {
          return
@@ -443,6 +449,8 @@ class Spring is Entity {
       _activateTime = -1
    }
 
+   // if we're activated this frame, return the bounce amount
+   // otherwise return 0
    tryActivate() {
       if (activated == 0) {
          reset()
@@ -462,9 +470,12 @@ class Spring is Entity {
          return
       }
 
+      // if we've gotten here, nobody has bounced off of us.
       if (activated < 0) {
          reset()
       } else {
+         // since we work like a moving platform, move down and shrink
+         // the player will stick to us
          dy = 1
          y = _baseY + (4 - activated)
       }
@@ -494,11 +505,14 @@ class Cannonball is Entity {
 
    touch(other, side) {
       active = false
+      // don't hurt from the top
       if (other is Player && side != DIR_TOP) {
          other.hurt(this, 1)
       }
    }
 
+   // move our speed every frame. if we hit something, activate touch on ourselves
+   // and explode
    think(dt) {
       var chkx = check(DIM_HORIZ, dx)
       if (chkx.entity != null && chkx.entity != _parent) {
@@ -512,6 +526,7 @@ class Cannonball is Entity {
       }
       y = y + dy
 
+      // die if we go off the level
       if ( y > (world.level.y + world.level.h + 2) * 8 || y < world.level.y) {
          active = false
          return
@@ -547,18 +562,22 @@ class Cannon is Entity {
          return
       }
 
+      // don't fire if we're too close or too far away
       var dist = (world.player.x - x).abs
       if (dist <= 16 || dist > 200) {
+         // don't wait a full cycle to retry
          _fireTime = world.time + 60
          return
       }
 
+      // spawn a cannonball, set parent to this so it doesn't immediately explode
       var ball = Cannonball.new(world, 270, x, y)
       ball.parent = this
       ball.dx = _dim == DIM_HORIZ ? _d : 0
       ball.dy = _dim == DIM_VERT ? _d : 0
       world.entities.add(ball)
 
+      // recharge
       _fireTime = world.time + 300
    }
 
@@ -567,6 +586,7 @@ class Cannon is Entity {
    }
 }
 
+// spikes just hurt players when touched
 class Spike is Entity {
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 8, 8)
@@ -604,6 +624,7 @@ class FallingPlatform is Entity {
          return
       }
 
+      // if a player touches us, wait a bit and then start falling
       if (_fallTime == 0) {
          _fallTime = other.world.time + 10
          dy = _fallSpeed
@@ -616,11 +637,13 @@ class FallingPlatform is Entity {
       }
       _movedTime = world.time
 
+      // die if we've fallen off the level
       if ( y > (world.level.y + world.level.h + 2) * 8) {
          active = false
          return
       }
 
+      // keep moving down
       if (_fallTime > 0 && world.time > _fallTime) {
          y = y + dy
       }
