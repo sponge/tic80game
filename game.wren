@@ -172,6 +172,8 @@ class TileCollider {
    }
 }
 
+// don't bother releasing since nothing ever needs for more than a single frame.
+// just cycle through the 16
 class CollisionPool {
    static init() {
       __pool = []
@@ -191,6 +193,8 @@ class CollisionPool {
    }
 }
 
+// storage class since we need to know distance to trigger to filter
+// them out during movement
 class TriggerInfo {
    delta { _delta }
    entity { _entity }
@@ -200,6 +204,7 @@ class TriggerInfo {
    }
 }
 
+// storage class for collision. don't alloc these directly, use CollisionPool
 class Collision {
    delta { _delta }
    entity { _entity }
@@ -218,6 +223,9 @@ class Collision {
       _triggers = []
    }
 
+   // since we can trigger multiple entities per frame, we need to store
+   // all that we can possibly collide with, and then filter out ones that
+   // are too far away at the end.
    addTrigger(delta, entity) {
       _triggers.add(TriggerInfo.new(delta, entity))
    }
@@ -232,6 +240,19 @@ class Collision {
             _triggers.removeAt(i)
          }
       }
+   }
+
+   // returns true if the specified ent class is one that the collision ran into
+   // should probably use properties or some sort of ECS-esque system but this
+   // works good enough
+   triggerHas(classname) {
+      for (t in _triggers) {
+         if (t.entity is classname) {
+            return true
+         }
+      }
+
+      return false
    }
 
    set(delta, entity, side) {
@@ -279,6 +300,7 @@ class Entity {
       _cx = 0
       _cy = 0
 
+      // allow multiple entities to use this so they all react to the world similarly
       _baseResolve = Fn.new { |side, tile, tx, ty, ldx, ldy|
          if (tile == 0) {
             return false
@@ -298,6 +320,7 @@ class Entity {
       }
    }
    
+   // returns true if this rect intersects with the other ent's rect
    intersects(other) {
       return Math.rectIntersect(x, y, w, h, other.x, other.y, other.w, other.h)
    }
@@ -331,6 +354,8 @@ class Entity {
       }
    }
 
+   // one place to try moving through the world. checks tiles in the way, and all entities
+   // probably want some sort of spatial partitioning eventually, but rect intersects are cheap
    check(dim, d) {
       var dir = dim == DIM_HORIZ ? (d > 0 ? DIR_RIGHT : DIR_LEFT) : (d > 0 ? DIR_TOP : DIR_BOTTOM)
       d = _world.tileCollider.query(_x, _y, _w, _h, dim, d, resolve)
@@ -365,6 +390,8 @@ class Entity {
       return colInfo.set(d, collideEnt, dir)
    }
 
+   // called from subclassed entities when you want to activate all entities
+   // the collision is moving into
    triggerTouch(collision) {
       if (collision.entity != null) {
          collision.entity.touch(this, collision.side)
@@ -375,9 +402,13 @@ class Entity {
       }
    }
 
-   canCollide(other, side, d){ true }
+   // return true or false based on if the receiving entity wants to collide this frame
+   canCollide(other, side, d){ true } 
+   // if true, it will not impede movement
    trigger { false }
+   // called when another entity collides with you
    touch(other, side){}
+   // called every frame
    think(dt){}
    draw(t){}
 }
@@ -810,6 +841,8 @@ class Player is Entity {
       _earlyJumpFrames = 6
       _lateJumpFrames = 6
       _terminalVelocity = 2
+      _enemyJumpHeld = 2.75
+      _enemyJump = 1.9
       _jumpHeights = {
           1.5: 2.875,
          1.25: 2.78125,
@@ -957,7 +990,10 @@ class Player is Entity {
          dx = 0
       }
 
-      if (chky.delta != dy) {
+      if (chky.side == DIR_TOP && chky.triggerHas(Cannonball)) {
+         dy = jumpPress ? -_enemyJumpHeld : -_enemyJump
+         _jumpHeld = jumpPress
+      } else if (chky.delta != dy) {
          // either dir, nullify y movement
          dy = 0
       }
