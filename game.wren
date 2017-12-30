@@ -422,10 +422,11 @@ class Spring is Entity {
       _activateTime = -1
       _thinkTime = 0
       _baseY = oy
+      _delay = 3
    }
 
    // springs dont activate immediately, they activate a few frames later
-   activated { _activateTime == -1 ? 4 : 4 - ((world.time - _activateTime) / 4).floor }
+   activated { _activateTime == -1 ? _delay : _delay - ((world.time - _activateTime) / _delay).floor }
 
    // they work like platforms, only collide from the top going down
    canCollide(other, side, d) {
@@ -454,7 +455,7 @@ class Spring is Entity {
    tryActivate() {
       if (activated == 0) {
          reset()
-         return -3.75
+         return -3.6
       } else {
          return 0
       }
@@ -477,13 +478,13 @@ class Spring is Entity {
          // since we work like a moving platform, move down and shrink
          // the player will stick to us
          dy = 1
-         y = _baseY + (4 - activated)
+         y = _baseY + (_delay - activated)
       }
    }
 
    draw(t) {
-      var frm = _activateTime == -1 ? 4 : activated
-      Tic.spr(264 - frm, cx, cy, 0)      
+      var frm = _activateTime == -1 ? _delay : activated
+      Tic.spr(263 - frm, cx, cy, 0)      
    }
 }
 
@@ -1000,18 +1001,22 @@ class Player is Entity {
       dy = Math.min(dy, _terminalVelocity)
 
       // move x first, then move y. don't do it at the same time, else buggy behavior
-      var chkx = check(DIM_HORIZ, dx)
-      x = x + chkx.delta
-      triggerTouch(chkx)
+      if (_groundEnt is Spring == false) {
+         var chkx = check(DIM_HORIZ, dx)
+         x = x + chkx.delta
+         triggerTouch(chkx)
+
+         // if we hit either direction in x, stop momentum
+         if (chkx.delta != dx) {
+            dx = 0
+         }
+      }
 
       var chky = check(DIM_VERT, dy)
       y = y + chky.delta
       triggerTouch(chky)
 
-      // if we hit either direction in x, stop momentum
-      if (chkx.delta != dx) {
-         dx = 0
-      }
+
 
       if (chky.side == DIR_TOP && chky.triggerHas(Cannonball)) {
          dy = jumpPress ? -_enemyJumpHeld : -_enemyJump
