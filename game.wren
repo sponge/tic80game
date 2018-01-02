@@ -285,6 +285,7 @@ class Entity {
    active=(a) { _active = a }
 
    world { _world }
+   resolve { _baseResolve }
    baseResolve { _baseResolve }
    
    construct new(world, ti, x, y, w, h) {
@@ -571,8 +572,6 @@ class Cannonball is Entity {
    parent { _parent }
    parent=(ent) { _parent = ent }
 
-   resolve { baseResolve }
-
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 8, 8)
       dx = -0.5
@@ -597,23 +596,37 @@ class Cannonball is Entity {
       var chkx = check(DIM_HORIZ, dx)
       if (chkx.entity != null && chkx.entity != _parent) {
          touch(chkx.entity, chkx.side)
+         return
       }
-      x = x + dx
+
+      if (chkx.delta != dx) {
+         touch(null, chkx.side)
+         return
+      }
+      
+      x = x + chkx.delta
 
       var chky = check(DIM_VERT, dy)
       if (chky.entity != null && chky.entity != _parent) {
          touch(chky.entity, chky.side)
+         return
       }
-      y = y + dy
+
+      if (chky.delta != dy) {
+         touch(null, chky.side)
+         return
+      }
+      
+      y = y + chky.delta
 
       // die if we go off the level
       if ( y > (world.level.y + world.level.h + 2) * 8 || y < world.level.y) {
-         active = false
+         touch(null, 0)
          return
       }
 
       if ( x > (world.level.x + world.level.w) * 8 || x < world.level.x) {
-         active = false
+         touch(null, 0)
          return
       }
    }
@@ -663,6 +676,41 @@ class Cannon is Entity {
 
    draw(t) {
       Tic.spr(_tile, cx, cy, 13)      
+   }
+}
+
+class StunShot is Cannonball {
+   trigger { true }
+
+   construct new(player, world, ti, ox, oy) {
+      super(world, ti, ox, oy, 8, 8)
+      dx = 2
+      dy = 0
+      parent = player
+      parent.shotsActive = parent.shotsActive + 1
+      _totalDistance = 0
+   }
+
+   touch(other, side) {
+      if (other == parent) {
+         return
+      }
+
+      active = false
+      parent.shotsActive = parent.shotsActive - 1
+   }
+
+   think(dt) {
+      super(dt)
+      _totalDistance = _totalDistance + dx.abs
+      if (_totalDistance > 100) {
+         active = false
+         parent.shotsActive = parent.shotsActive - 1
+      }
+   }
+
+   draw(t) {
+      Tic.spr(271, cx, cy, 0)      
    }
 }
 
@@ -913,13 +961,14 @@ class ExitBanner is Entity {
 }
 
 class Player is Entity {
-   resolve { baseResolve }
    disableControls=(b) { _disableControls = b }
    pMeter { _pMeter }
    pMeterCapacity { _pMeterCapacity }
    groundEnt { _groundEnt }
    groundEnt=(ent) { _groundEnt = ent }
    health { _health }
+   shotsActive { _shotsActive }
+   shotsActive=(i) { _shotsActive = i }
    
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy - 4, 7, 12)
@@ -933,6 +982,8 @@ class Player is Entity {
       _disableControls = false
       _health = 3
       _invulnTime = 0
+      _facing = 1
+      _shotsActive = 0
 
       // values from https://cdn.discordapp.com/attachments/191015116655951872/332350193540268033/smw_physics.png
       _friction = 0.03125
@@ -982,6 +1033,7 @@ class Player is Entity {
    think(dt) {
       var dir = _disableControls ? 0 : Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
       var jumpPress = _disableControls ? false : Tic.btn(4)
+      var shootPress = _disableControls ? false : Tic.btnp(5, 0, 60)
       var speed = 0
 
       // track if on the ground this frame
@@ -1016,6 +1068,9 @@ class Player is Entity {
          x = x + check(DIM_HORIZ, _groundEnt.dx).delta
          // Debug.text("y+h", y+h)
       }
+
+      // set direction for bullets
+      _facing = dir != 0 ? dir : _facing
 
       // track frames since leaving platform for late jump presses
       _fallingFrames = _grounded ? 0 : _fallingFrames + 1
@@ -1097,14 +1152,18 @@ class Player is Entity {
       y = y + chky.delta
       triggerTouch(chky)
 
-
-
       if (chky.side == DIR_TOP && chky.triggerHas(Cannonball)) {
          dy = jumpPress ? -_enemyJumpHeld : -_enemyJump
          _jumpHeld = jumpPress
       } else if (chky.delta != dy) {
          // either dir, nullify y movement
          dy = 0
+      }
+
+      if (shootPress && _shotsActive < 3) {
+         var shot = StunShot.new(this, world, 271, _facing > 0 ? x + 6 : x - 8, y + 1)
+         shot.dx = shot.dx * _facing
+         world.entities.add(shot)
       }
 
       // update camera
