@@ -406,6 +406,8 @@ class Entity {
    canCollide(other, side, d){ true } 
    // if true, it will not impede movement
    trigger { false }
+   // if true, player will track and move before player moves
+   platform { false }
    // called when another entity collides with you
    touch(other, side){}
    // called every frame
@@ -493,6 +495,8 @@ class Flame is Entity {
 // this would probably be cleaner if i could query to see if any entities are standing on the spring
 // and trigger the bounce on them instead of having the player check.
 class Spring is Entity {
+   platform { true }
+
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 8, 8)
       _activateTime = -1
@@ -684,6 +688,7 @@ class Spike is Entity {
 }
 
 class FallingPlatform is Entity {
+   platform { true }
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 24, 4)
 
@@ -735,6 +740,7 @@ class FallingPlatform is Entity {
 
 class MovingPlatform is Entity {
    resolve { _resolve }
+   platform { true }
     
    construct new(world, ti, ox, oy) {
       super(world, ti, ox, oy, 24, 0)
@@ -995,7 +1001,7 @@ class Player is Entity {
       }
 
       // if we're on a platform, move the platform first
-      if (_groundEnt is MovingPlatform || _groundEnt is FallingPlatform || _groundEnt is Spring) {
+      if (_groundEnt && _groundEnt.platform) {
          _groundEnt.think(dt)
          // Debug.text("y+h", y+h)
          // Debug.text("platy", _groundEnt.y)
