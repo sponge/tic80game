@@ -599,26 +599,24 @@ class Cannonball is Entity {
          return
       }
 
+      x = x + chkx.delta
       if (chkx.delta != dx) {
          touch(null, chkx.side)
          return
       }
       
-      x = x + chkx.delta
-
       var chky = check(DIM_VERT, dy)
       if (chky.entity != null && chky.entity != _parent) {
          touch(chky.entity, chky.side)
          return
       }
 
+      y = y + chky.delta
       if (chky.delta != dy) {
          touch(null, chky.side)
          return
       }
       
-      y = y + chky.delta
-
       // die if we go off the level
       if ( y > (world.level.y + world.level.h + 2) * 8 || y < world.level.y) {
          touch(null, 0)
@@ -681,36 +679,45 @@ class Cannon is Entity {
 
 class StunShot is Cannonball {
    trigger { true }
+   canCollide(other, side, d) { other != parent }
+
 
    construct new(player, world, ti, ox, oy) {
-      super(world, ti, ox, oy, 8, 8)
+      super(world, ti, ox, oy, 6, 6)
       dx = 2
       dy = 0
       parent = player
       parent.shotsActive = parent.shotsActive + 1
       _totalDistance = 0
+      _endTime = 0
    }
 
    touch(other, side) {
-      if (other == parent) {
-         return
+      if (_endTime == 0) {
+         _endTime = world.time
+         parent.shotsActive = parent.shotsActive - 1
       }
-
-      active = false
-      parent.shotsActive = parent.shotsActive - 1
    }
 
    think(dt) {
+      if (_endTime > 0 && world.time > _endTime) {
+         if (world.time >= _endTime + 15) {
+            active = false
+         }
+         return
+      }
+
       super(dt)
       _totalDistance = _totalDistance + dx.abs
       if (_totalDistance > 100) {
-         active = false
+         _endTime = world.time
          parent.shotsActive = parent.shotsActive - 1
       }
    }
 
    draw(t) {
-      Tic.spr(271, cx, cy, 0)      
+      var anim = _endTime > 0 ? ((world.time - _endTime) / 5).floor + 1 : 0
+      Tic.spr(275 + anim, cx, cy, 0)      
    }
 }
 
