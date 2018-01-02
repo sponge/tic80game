@@ -425,7 +425,7 @@ class Flame is Entity {
       _delay = 0
       if (ti > 3) {
          ti = ti - 4
-         _delay = 180
+         _delay = 240
       }
       _tile = ti
 
@@ -438,15 +438,16 @@ class Flame is Entity {
       }
 
       super(world, ti, ox, oy, w, h)
-   }
+   }  
 
    isHurting() {
-      return (world.time + _delay) % 360 > 180
+      var cyc = (world.time + _delay) % 480
+      return cyc > 300
    }
 
    isFiringUp() {
-      var cyc = (world.time + _delay) % 360
-      return cyc > 90 && cyc < 180
+      var cyc = (world.time + _delay) % 480
+      return cyc > 240 && cyc < 300
    }
 
    canCollide(other, side, d) { true }
