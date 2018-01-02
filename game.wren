@@ -499,10 +499,11 @@ class Spring is Entity {
       _thinkTime = 0
       _baseY = oy
       _delay = 3
+      _activated = false
    }
 
    // springs dont activate immediately, they activate a few frames later
-   activated { _activateTime == -1 ? _delay : _delay - ((world.time - _activateTime) / _delay).floor }
+   framesUntilTrigger { _activateTime == -1 ? _delay : _delay - ((world.time - _activateTime) / _delay).floor }
 
    // they work like platforms, only collide from the top going down
    canCollide(other, side, d) {
@@ -520,21 +521,17 @@ class Spring is Entity {
       }
    }
 
-   reset() {
+   trigger() {
       y = _baseY
       dy = 0
       _activateTime = -1
+      _activated = true
    }
 
    // if we're activated this frame, return the bounce amount
    // otherwise return 0
-   tryActivate() {
-      if (activated == 0) {
-         reset()
-         return -3.6
-      } else {
-         return 0
-      }
+   checkSpring() {
+      return _activated ? -3.6 : 0
    }
 
    think(dt) {
@@ -544,22 +541,24 @@ class Spring is Entity {
       _thinkTime = world.time
 
       if (_activateTime == -1) {
+         _activated = false
          return
       }
 
-      // if we've gotten here, nobody has bounced off of us.
-      if (activated < 0) {
-         reset()
+      // set us up if we're set to activate. if there's a player on us, this think
+      // will be run before the player calls checkSpring
+      if (framesUntilTrigger <= 0) {
+         trigger()
       } else {
          // since we work like a moving platform, move down and shrink
          // the player will stick to us
          dy = 2
-         y = _baseY + (_delay - activated) * 2
+         y = _baseY + (_delay - framesUntilTrigger) * 2
       }
    }
 
    draw(t) {
-      var frm = _activateTime == -1 ? _delay : activated
+      var frm = _activateTime == -1 ? _delay : framesUntilTrigger
       Tic.spr(263 - frm, cx, cy, 0)      
    }
 }
@@ -1002,9 +1001,9 @@ class Player is Entity {
          // Debug.text("platy", _groundEnt.y)
          if (_groundEnt is Spring) {
             // this will kill the ability to jump too, even if the spring isn't ready to activate yet
-            dy = _groundEnt.tryActivate()
+            dy = _groundEnt.checkSpring()
             _grounded = false
-            _jumpHeld = jumpPress
+            _jumpHeld = jumpPress && _jumpHeldFrames < _earlyJumpFrames * 2
          }
 
          y = y + check(DIM_VERT, _groundEnt.dy).delta
