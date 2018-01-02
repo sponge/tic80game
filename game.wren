@@ -413,6 +413,81 @@ class Entity {
    draw(t){}
 }
 
+// flames actually spawn out of a tile in the tilemap range. the flamethrower is solid
+// but we spawn the flame and toggle it on and off instead to cut back on entities used
+class Flame is Entity {
+   construct new(world, ti, ox, oy) {
+      _dim = ti % 2 == 0 ? DIM_HORIZ : DIM_VERT
+      var w = _dim == DIM_HORIZ ? 16 : 6
+      var h = _dim == DIM_HORIZ ? 6 : 16
+      
+      ti = ti - 7
+      _delay = 0
+      if (ti > 3) {
+         ti = ti - 4
+         _delay = 180
+      }
+      _tile = ti
+
+      if (ti == 0 || ti == 3) {
+         ox = ox + (_dim == DIM_HORIZ ? -16 : 1)
+         oy = oy + (_dim == DIM_HORIZ ? 1 : -16)
+      } else {
+         ox = ox + (_dim == DIM_HORIZ ? 8 : 1)
+         oy = oy + (_dim == DIM_HORIZ ? 1 : 8)
+      }
+
+      super(world, ti, ox, oy, w, h)
+   }
+
+   isHurting() {
+      return (world.time + _delay) % 360 > 180
+   }
+
+   isFiringUp() {
+      var cyc = (world.time + _delay) % 360
+      return cyc > 90 && cyc < 180
+   }
+
+   canCollide(other, side, d) { true }
+   trigger { true }
+
+   touch(other, side) {
+      if (other is Player == false) {
+         return
+      }
+
+      if (isHurting() == false) {
+         return
+      }
+
+      other.hurt(this, 1)
+   }
+
+   draw(t) {
+      var spr = 263
+      if (isHurting() == false) {
+         if (isFiringUp()) {
+            spr = 264
+         } else {
+            return
+         }     
+      }
+
+      var flicker = (t / 3 % 2).floor == 0
+
+      if (_dim == DIM_VERT) {
+         var f = flicker ? 1 : 0
+         var flip = _tile == 2 ? 2 + f : f
+         Tic.spr(spr, cx - 1, cy, 1, 1, flip, 0, 1, 2)
+      } else {
+         var f = flicker ? 2 : 0
+         var flip = _tile == 3 ? 1 + f : f
+         Tic.spr(spr, cx, cy - 1, 1, 1, flip, 1, 1, 2)         
+      }
+   }
+}
+
 // springs work like moving platforms, and will be called from the player's think early on
 // this would probably be cleaner if i could query to see if any entities are standing on the spring
 // and trigger the bounce on them instead of having the player check.
@@ -477,8 +552,8 @@ class Spring is Entity {
       } else {
          // since we work like a moving platform, move down and shrink
          // the player will stick to us
-         dy = 1
-         y = _baseY + (_delay - activated)
+         dy = 2
+         y = _baseY + (_delay - activated) * 2
       }
    }
 
@@ -1208,6 +1283,14 @@ class World {
          240: Cannon,
          239: Cannon,
          238: Cannon,
+         14: Flame,
+         13: Flame,
+         12: Flame,
+         11: Flame,
+         10: Flame,
+         9: Flame,
+         8: Flame,
+         7: Flame,
       }
 
       for (y in _level.y.._level.y+_level.h) {
@@ -1254,7 +1337,8 @@ class World {
    }
 
    draw(t) {
-      Tic.map(_cam.tx, _cam.ty, _cam.tw, _cam.th, 0 - _cam.x % 8, 0 - _cam.y % 8, -1, 1, _remap)
+      Tic.cls(2)
+      Tic.map(_cam.tx, _cam.ty, _cam.tw, _cam.th, 0 - _cam.x % 8, 0 - _cam.y % 8, 2, 1, _remap)
 
       for (ent in _entities) {
          if (ent.active) {
