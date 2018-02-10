@@ -89,17 +89,17 @@ class Debug {
       var y = 130
 
       for (line in __lines) {
-         Tic.print(line[0], 0, y)
-         Tic.print(line[1], 32, y)
+         TIC.print(line[0], 0, y)
+         TIC.print(line[1], 32, y)
          y = y - 8
       }
 
       for (r in __rectbs) {
-         Tic.rectb(r[0], r[1], r[2], r[3], r[4])
+         TIC.rectb(r[0], r[1], r[2], r[3], r[4])
       }
 
       for (r in __rects) {
-         Tic.rect(r[0], r[1], r[2], r[3], r[4])         
+         TIC.rect(r[0], r[1], r[2], r[3], r[4])         
       }
       
       __lines.clear()
@@ -483,11 +483,11 @@ class Flame is Entity {
       if (_dim == DIM_VERT) {
          var f = flicker ? 1 : 0
          var flip = _tile == 2 ? 2 + f : f
-         Tic.spr(spr, cx - 1, cy, 1, 1, flip, 0, 1, 2)
+         TIC.spr(spr, cx - 1, cy, 1, 1, flip, 0, 1, 2)
       } else {
          var f = flicker ? 2 : 0
          var flip = _tile == 3 ? 1 + f : f
-         Tic.spr(spr, cx, cy - 1, 1, 1, flip, 1, 1, 2)         
+         TIC.spr(spr, cx, cy - 1, 1, 1, flip, 1, 1, 2)         
       }
    }
 }
@@ -564,7 +564,7 @@ class Spring is Entity {
 
    draw(t) {
       var frm = _activateTime == -1 ? _delay : framesUntilTrigger
-      Tic.spr(263 - frm, cx, cy, 0)      
+      TIC.spr(263 - frm, cx, cy, 0)      
    }
 }
 
@@ -630,7 +630,7 @@ class Cannonball is Entity {
    }
 
    draw(t) {
-      Tic.spr(270, cx, cy, 13)      
+      TIC.spr(270, cx, cy, 13)      
    }
 }
 
@@ -673,7 +673,7 @@ class Cannon is Entity {
    }
 
    draw(t) {
-      Tic.spr(_tile, cx, cy, 13)      
+      TIC.spr(_tile, cx, cy, 13)      
    }
 }
 
@@ -717,7 +717,7 @@ class StunShot is Cannonball {
 
    draw(t) {
       var anim = _endTime > 0 ? ((world.time - _endTime) / 5).floor + 1 : 0
-      Tic.spr(275 + anim, cx, cy, 0)      
+      TIC.spr(275 + anim, cx, cy, 0)      
    }
 }
 
@@ -738,7 +738,7 @@ class Spike is Entity {
    }
 
    draw(t) {
-      Tic.spr(242, cx, cy, 0)      
+      TIC.spr(242, cx, cy, 0)      
    }
 }
 
@@ -787,9 +787,9 @@ class FallingPlatform is Entity {
    }
 
    draw(t) {
-      Tic.spr(244, cx, cy, 0)
-      Tic.spr(244, cx+8, cy, 0)
-      Tic.spr(244, cx+16, cy, 0)
+      TIC.spr(244, cx, cy, 0)
+      TIC.spr(244, cx+8, cy, 0)
+      TIC.spr(244, cx+16, cy, 0)
    }
 }
 
@@ -853,7 +853,7 @@ class MovingPlatform is Entity {
       _ignoreY = y / 8
 
       // but we do need to know which way we're about to go!
-      var t = Tic.mget(_ignoreX, _ignoreY)
+      var t = TIC.mget(_ignoreX, _ignoreY)
       setDirection(t)
 
       // go a long way out to find how far our next target is
@@ -905,7 +905,7 @@ class MovingPlatform is Entity {
    }
 
    draw(t) {
-      Tic.spr(272, cx, cy, 0, 1, 0, 0, 3, 1)
+      TIC.spr(272, cx, cy, 0, 1, 0, 0, 3, 1)
    }
 }
 
@@ -924,7 +924,7 @@ class Coin is Entity {
    }
 
    draw(t) {
-      Tic.spr(256 + (t / 8 % 4).floor, cx, cy, 0)
+      TIC.spr(256 + (t / 8 % 4).floor, cx, cy, 0)
    }
 }
 
@@ -937,7 +937,7 @@ class LevelExit is Entity {
    trigger { true }
 
    draw(t) {
-      Tic.spr(268 + (t / 7 % 2).floor, cx, cy, 0)
+      TIC.spr(268 + (t / 7 % 2).floor, cx, cy, 0)
    }
 
    touch(other, side) {
@@ -957,12 +957,12 @@ class ExitBanner is Entity {
    }
 
    draw(t) {
-      Tic.rect(0, 40, 240, 56, 5)
-      Tic.print("Level Cleared", 45, 45, 15, false, 2)
-      Tic.print("Now, lets move on to the next one!", 27, 60)
+      TIC.rect(0, 40, 240, 56, 5)
+      TIC.print("Level Cleared", 45, 45, 15, false, 2)
+      TIC.print("Now, lets move on to the next one!", 27, 60)
       if (world.totalCoins > 0) {
          var pct = (world.coins / world.totalCoins *100).floor
-         Tic.print("Coins ........ %(pct)\%", 60, 75, 15, true)
+         TIC.print("Coins ........ %(pct)\%", 60, 75, 15, true)
       }
    }
 }
@@ -1038,9 +1038,9 @@ class Player is Entity {
    }
 
    think(dt) {
-      var dir = _disableControls ? 0 : Tic.btn(2) ? -1 : Tic.btn(3) ? 1 : 0
-      var jumpPress = _disableControls ? false : Tic.btn(4)
-      var shootPress = _disableControls ? false : Tic.btnp(5, 0, 60)
+      var dir = _disableControls ? 0 : TIC.btn(2) ? -1 : TIC.btn(3) ? 1 : 0
+      var jumpPress = _disableControls ? false : TIC.btn(4)
+      var shootPress = _disableControls ? false : TIC.btnp(5, 0, 60)
       var speed = 0
 
       // track if on the ground this frame
@@ -1196,7 +1196,7 @@ class Player is Entity {
 
    draw(t) {
       var color = world.time < _invulnTime ? 15 : 14
-      Tic.rect(cx, cy, w, h, color)
+      TIC.rect(cx, cy, w, h, color)
    }
 }
 
@@ -1320,7 +1320,7 @@ class World {
             return 1
          }
 
-         return Tic.mget(x,y)
+         return TIC.mget(x,y)
       }
       _tileCollider = TileCollider.new(_getTile, 8, 8)
 
@@ -1367,7 +1367,7 @@ class World {
 
       for (y in _level.y.._level.y+_level.h) {
          for (x in _level.x.._level.x+_level.w) {
-            var i = Tic.mget(x, y)
+            var i = TIC.mget(x, y)
             var e = entmappings[i]
             if (e != null) {
                var ent = e.new(this, i, x*8, y*8)
@@ -1409,8 +1409,8 @@ class World {
    }
 
    draw(t) {
-      Tic.cls(2)
-      Tic.map(_cam.tx, _cam.ty, _cam.tw, _cam.th, 0 - _cam.x % 8, 0 - _cam.y % 8, 2, 1, _remap)
+      TIC.cls(2)
+      TIC.map(_cam.tx, _cam.ty, _cam.tw, _cam.th, 0 - _cam.x % 8, 0 - _cam.y % 8, 2, 1, _remap)
 
       for (ent in _entities) {
          if (ent.active) {
@@ -1420,20 +1420,20 @@ class World {
       }
 
       if (_drawHud && _player != null) {
-         Tic.rect(0, 0, 240, 12, 1)
+         TIC.rect(0, 0, 240, 12, 1)
          if (_totalCoins > 0) {
-            Tic.spr(256, 100, 1, 0)
-            Tic.print("%(_coins)/%(_totalCoins)", 110, 3, _coins == _totalCoins ? 14 : 15, true)
+            TIC.spr(256, 100, 1, 0)
+            TIC.print("%(_coins)/%(_totalCoins)", 110, 3, _coins == _totalCoins ? 14 : 15, true)
          }
-         Tic.print("S", 4, 3, 15, true)
+         TIC.print("S", 4, 3, 15, true)
 
          for (i in 0..2) {
-            Tic.spr(i < _player.health ? 265 : 281, 198+(i*14), 2, 0, 1, 0, 0, 2, 1)
+            TIC.spr(i < _player.health ? 265 : 281, 198+(i*14), 2, 0, 1, 0, 0, 2, 1)
          }
 
          var pct = (_player.pMeter / _player.pMeterCapacity * 40 / 8).floor
          for (i in 0..4) {
-            Tic.spr(i < pct ? 283 : 267, 11 + i * 6, 2, 0)
+            TIC.spr(i < pct ? 283 : 267, 11 + i * 6, 2, 0)
          }
       }
    }
@@ -1453,8 +1453,8 @@ class Intro {
    }
 
    draw(t) {
-      Tic.cls(2)
-      Tic.print("ENTERING LEVEL %(_num+1)", 70, 60)
+      TIC.cls(2)
+      TIC.print("ENTERING LEVEL %(_num+1)", 70, 60)
    }
 }
 
@@ -1481,7 +1481,7 @@ class Scene {
    }
 }
 
-class Game is Engine { 
+class Game is TIC { 
    construct new(){
       CollisionPool.init()
       Debug.init()
@@ -1491,13 +1491,13 @@ class Game is Engine {
       Scene.level(0)
    }
    
-   update(){
+   TIC(){
       _time = _time + 1
-      if (Tic.btnp(7, 1, 60)) {
+      if (TIC.btnp(7, 1, 60)) {
          _slomo = !_slomo
       }
 
-      if (!_slomo || Tic.btnp(6, 1, 30)) {
+      if (!_slomo || TIC.btnp(6, 1, 30)) {
          Scene.update(1)
          Scene.draw(_time)
          Timer.tick(1)
